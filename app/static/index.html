@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QBK Youth Trial Leads</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f1e8;
+      --ink: #13212b;
+      --muted: #597081;
+      --card: #fffdf7;
+      --line: #d8ddd1;
+      --teal: #0c7a69;
+      --blue: #165a8f;
+      --shadow: 0 10px 28px rgba(15, 34, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Sora", "Avenir Next", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1000px 440px at 110% -10%, #dfe8ea 0%, transparent 55%),
+        radial-gradient(700px 360px at -10% 0%, #ece3cf 0%, transparent 60%),
+        var(--bg);
+    }
+
+    .wrap {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 28px 16px 36px;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: -0.8px;
+      line-height: 1;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      max-width: 640px;
+    }
+
+    .meta {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border-bottom: 1px solid #e6eadf;
+      background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(247,248,241,0.92));
+    }
+
+    .toolbar-left {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-right {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #eef4ef;
+      color: #2f4f45;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 9px 12px;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: transform 120ms ease, opacity 120ms ease;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.55; cursor: wait; }
+    .btn-teal { background: var(--teal); }
+    .btn-blue { background: var(--blue); }
+
+    .status {
+      padding: 10px 14px 0;
+      min-height: 28px;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: "IBM Plex Mono", monospace;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 72vh;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid #e7ece4;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #fbfcf7;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .mono {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .class-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .class-name {
+      font-weight: 600;
+    }
+
+    .memberships {
+      max-width: 280px;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+
+    .empty {
+      padding: 24px 14px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 820px) {
+      .hero {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .meta {
+        text-align: left;
+      }
+
+      .toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      th, td {
+        padding: 10px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1 class="title">Youth Trial Leads</h1>
+        <p class="subtitle">All 2026 Salesmessage leads from the Youth inbox that have a matching DaySmart account.</p>
+      </div>
+      <div class="meta">
+        <div id="lastRefreshed">Last refresh: --</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button class="btn btn-teal" id="btnSyncAll">Sync</button>
+          <button class="btn btn-blue" id="btnRefresh">Refresh List</button>
+        </div>
+        <div class="toolbar-right">
+          <span class="pill" id="leadCount">0 leads</span>
+        </div>
+      </div>
+
+      <div class="status" id="statusLine"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Parent Name</th>
+              <th>Child's Name</th>
+              <th>Phone</th>
+              <th>Free Trial Class</th>
+              <th>Added To Class</th>
+              <th>Membership</th>
+            </tr>
+          </thead>
+          <tbody id="leadsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const q = (id) => document.getElementById(id);
+    const leadsBody = q("leadsBody");
+    const statusLine = q("statusLine");
+    const leadCount = q("leadCount");
+    const lastRefreshed = q("lastRefreshed");
+
+    function setStatus(text, isError = false) {
+      statusLine.textContent = text;
+      statusLine.style.color = isError ? "#a52a2a" : "#597081";
+    }
+
+    function timestamp() {
+      return new Date().toLocaleString();
+    }
+
+    async function getJson(url) {
+      const res = await fetch(url);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      return data;
+    }
+
+    async function sendJson(url, method, payload) {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function renderLeads(items) {
+      leadCount.textContent = `${items.length} lead${items.length === 1 ? "" : "s"}`;
+      leadsBody.innerHTML = "";
+
+      if (!items.length) {
+        leadsBody.innerHTML = '<tr><td colspan="6" class="empty">No qualifying youth trial leads found.</td></tr>';
+        return;
+      }
+
+      for (const row of items) {
+        const className = row.trial_class_name || "Youth Free Trial";
+        const classWhen = row.trial_class_when_display || row.trial_class_when || "--";
+        const leadKey = String(row.lead_key).replaceAll('"', "&quot;");
+        const conversationUrl = row.conversation_url || "#";
+        const parentName = row.contact_name || "--";
+        const childName = row.child_name || "--";
+
+        leadsBody.insertAdjacentHTML("beforeend", `
+          <tr data-lead-key="${leadKey}">
+            <td>${row.parent_daysmart_url ? `<a href="${row.parent_daysmart_url}" target="_blank" rel="noreferrer">${parentName}</a>` : parentName}</td>
+            <td>${row.child_daysmart_url ? `<a href="${row.child_daysmart_url}" target="_blank" rel="noreferrer">${childName}</a>` : childName}</td>
+            <td class="mono"><a href="${conversationUrl}" target="_blank" rel="noreferrer">${row.contact_phone || "--"}</a></td>
+            <td>
+              <div class="class-meta">
+                <span class="class-name">${className}</span>
+                <span>${classWhen}</span>
+              </div>
+            </td>
+            <td>
+              <input class="lead-added" type="checkbox" style="width:auto;" ${row.added_to_class ? "checked" : ""} />
+            </td>
+            <td><input type="checkbox" style="width:auto;" ${row.has_membership ? "checked" : ""} disabled /></td>
+          </tr>
+        `);
+      }
+
+      for (const checkbox of document.querySelectorAll(".lead-added")) {
+        checkbox.addEventListener("change", async (event) => {
+          const tr = event.target.closest("tr");
+          const leadKey = tr.getAttribute("data-lead-key");
+          const addedToClass = tr.querySelector(".lead-added").checked;
+          const input = event.target;
+          input.disabled = true;
+          try {
+            await sendJson(`/dashboard/trial-leads/${encodeURIComponent(leadKey)}`, "PATCH", {
+              added_to_class: addedToClass,
+            });
+            setStatus(`Updated ${leadKey}`);
+          } catch (error) {
+            input.checked = !addedToClass;
+            setStatus(`Update failed: ${error.message}`, true);
+          } finally {
+            input.disabled = false;
+          }
+        });
+      }
+    }
+
+    async function refreshLeads() {
+      const data = await getJson("/dashboard/trial-leads?limit=1000");
+      renderLeads(data.items || []);
+      lastRefreshed.textContent = `Last refresh: ${timestamp()}`;
+    }
+
+    async function withButton(button, fn) {
+      button.disabled = true;
+      try {
+        await fn();
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    q("btnRefresh").addEventListener("click", () => withButton(q("btnRefresh"), async () => {
+      setStatus("Refreshing lead list...");
+      await refreshLeads();
+      setStatus("Lead list refreshed.");
+    }));
+
+    q("btnSyncAll").addEventListener("click", () => withButton(q("btnSyncAll"), async () => {
+      setStatus("Syncing Salesmessage...");
+      await sendJson("/sync", "POST", {});
+      setStatus("Syncing DaySmart...");
+      await sendJson("/sync/daysmart", "POST", { max_pages: 40, page_size: 200 });
+      await refreshLeads();
+      setStatus("Sync complete.");
+    }));
+
+    refreshLeads()
+      .then(() => setStatus("Lead list ready."))
+      .catch((error) => setStatus(`Load failed: ${error.message}`, true));
+  </script>
+</body>
+</html>

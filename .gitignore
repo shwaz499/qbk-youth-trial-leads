@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+salesmessage_agent.db
+*.db
+notes/
