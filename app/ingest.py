@@ -165,12 +165,14 @@ def sync_conversations(
     filters: list[str],
     conv_page_size: int = 100,
     message_page_size: int = 100,
+    target_inbox_ids: set[int] | None = None,
 ) -> dict[str, int]:
     conversation_count = 0
     message_count = 0
     conversations_unchanged = 0
     message_pages_skipped = 0
     conversations_failed = 0
+    conversations_filtered_out = 0
 
     with get_conn(db_path) as conn:
         known_last_message_at, known_latest_message_id = _load_existing_conversation_state(conn)
@@ -198,6 +200,11 @@ def sync_conversations(
 
                     _upsert_conversation(conn, conv)
                     conversation_count += 1
+
+                    inbox_id = conv.get("inbox_id")
+                    if target_inbox_ids and inbox_id not in target_inbox_ids:
+                        conversations_filtered_out += 1
+                        continue
 
                     if not _should_fetch_messages(
                         remote_last_message_at=conv.get("last_message_at"),
@@ -257,4 +264,5 @@ def sync_conversations(
         "conversations_unchanged": conversations_unchanged,
         "message_pages_skipped": message_pages_skipped,
         "conversations_failed": conversations_failed,
+        "conversations_filtered_out": conversations_filtered_out,
     }
