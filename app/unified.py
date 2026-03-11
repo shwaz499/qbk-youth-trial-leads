@@ -576,9 +576,16 @@ def sync_salesmessage_to_unified(db_path: str, youth_inbox_id: int) -> dict[str,
 
         with get_conn(db_path) as conn:
             rows = conn.execute(
-                "SELECT id, created_at, body, source, user_id, raw_json FROM messages WHERE conversation_id = ?",
+                """
+                SELECT id, created_at, body, source, user_id, raw_json
+                FROM messages
+                WHERE conversation_id = ?
+                ORDER BY COALESCE(received_at, sent_at, created_at, id) DESC, id DESC
+                LIMIT 25
+                """,
                 (conv_row["id"],),
             ).fetchall()
+        rows = list(reversed(rows))
 
         added_to_class = False
         account_created = False

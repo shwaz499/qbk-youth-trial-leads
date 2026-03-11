@@ -45,8 +45,8 @@ class SyncRequest(BaseModel):
     inbox_ids: list[int] | None = None
     min_last_message_at: str | None = None
     conversation_page_size: int = 100
-    message_page_size: int = 100
-    max_message_pages_per_conversation: int = 2
+    message_page_size: int = 25
+    max_message_pages_per_conversation: int = 1
 
 
 class HostedSyncRequest(SyncRequest):

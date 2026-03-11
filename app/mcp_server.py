@@ -49,7 +49,7 @@ def _load_context(
 def sync_salesmessage(
     filters: list[str] | None = None,
     conversation_page_size: int = 100,
-    message_page_size: int = 100,
+    message_page_size: int = 25,
 ) -> dict[str, Any]:
     """Sync conversations and messages from Salesmessage into local DB."""
     client = SalesmessageClient(
@@ -63,6 +63,7 @@ def sync_salesmessage(
             filters=filters or ["open", "closed", "unread", "assigned", "unassigned"],
             conv_page_size=conversation_page_size,
             message_page_size=message_page_size,
+            max_message_pages_per_conversation=1,
         )
     except SalesmessageApiError as exc:
         return {"ok": False, "error": str(exc)}
