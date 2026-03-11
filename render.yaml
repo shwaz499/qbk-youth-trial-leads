@@ -1,13 +1,21 @@
+databases:
+  - name: qbk-youth-trial-leads-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+
 services:
   - type: web
-    name: qbk-youth-dashboard
+    name: qbk-youth-trial-leads
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: qbk-youth-trial-leads-db
+          property: connectionString
       - key: SALESMESSAGE_API_TOKEN
         sync: false
       - key: SALESMESSAGE_BASE_URL
