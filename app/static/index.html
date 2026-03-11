@@ -383,7 +383,27 @@
         const stage = data.stage || "idle";
         if (data.running) {
           const label = stage.replaceAll("_", " ");
-          setStatus(`Sync in progress: ${label}...`);
+          const progress = data.salesmessage_progress || null;
+          if (stage === "syncing_salesmessage" && progress) {
+            const parts = [
+              `filter ${progress.filter || "--"}`,
+              `offset ${progress.offset ?? 0}`,
+              `${progress.conversations_synced ?? 0} conversations`,
+              `${progress.messages_synced ?? 0} messages`,
+            ];
+            if (progress.conversations_before_cutoff) {
+              parts.push(`${progress.conversations_before_cutoff} before cutoff`);
+            }
+            if (progress.conversations_unchanged) {
+              parts.push(`${progress.conversations_unchanged} unchanged`);
+            }
+            if (progress.conversations_failed) {
+              parts.push(`${progress.conversations_failed} failed`);
+            }
+            setStatus(`Sync in progress: ${label} (${parts.join(", ")})...`);
+          } else {
+            setStatus(`Sync in progress: ${label}...`);
+          }
           await wait(3000);
           continue;
         }

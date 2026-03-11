@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import sqlite3
-from typing import Any
+from typing import Any, Callable
 
 from .db import get_conn
 from .salesmessage import SalesmessageApiError, SalesmessageClient
@@ -194,6 +194,7 @@ def sync_conversations(
     max_message_pages_per_conversation: int = 2,
     target_inbox_ids: set[int] | None = None,
     min_last_message_at: str | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, int]:
     conversation_count = 0
     message_count = 0
@@ -202,6 +203,26 @@ def sync_conversations(
     conversations_failed = 0
     conversations_filtered_out = 0
     conversations_before_cutoff = 0
+
+    def report_progress(current_filter: str, offset_value: int, conversation_id: int | None = None) -> None:
+        if progress_callback is None:
+            return
+        progress_callback(
+            {
+                "salesmessage_progress": {
+                    "filter": current_filter,
+                    "offset": offset_value,
+                    "conversation_id": conversation_id,
+                    "conversations_synced": conversation_count,
+                    "messages_synced": message_count,
+                    "conversations_unchanged": conversations_unchanged,
+                    "message_pages_skipped": message_pages_skipped,
+                    "conversations_failed": conversations_failed,
+                    "conversations_filtered_out": conversations_filtered_out,
+                    "conversations_before_cutoff": conversations_before_cutoff,
+                }
+            }
+        )
 
     with get_conn(db_path) as conn:
         cutoff_dt = _default_min_last_message_at(conn, min_last_message_at)
@@ -230,6 +251,7 @@ def sync_conversations(
                     remote_last_message_at = _parse_salesmessage_timestamp(conv.get("last_message_at"))
                     if cutoff_dt and remote_last_message_at and remote_last_message_at < cutoff_dt:
                         conversations_before_cutoff += 1
+                        report_progress(filter_name, offset, conv_id)
                         continue
                     page_has_eligible_conversation = True
 
@@ -242,6 +264,7 @@ def sync_conversations(
                     inbox_id = conv.get("inbox_id")
                     if target_inbox_ids and inbox_id not in target_inbox_ids:
                         conversations_filtered_out += 1
+                        report_progress(filter_name, offset, conv_id)
                         continue
 
                     if not _should_fetch_messages(
@@ -250,6 +273,7 @@ def sync_conversations(
                         known_latest_message_id=existing_latest_message_id,
                     ):
                         conversations_unchanged += 1
+                        report_progress(filter_name, offset, conv_id)
                         continue
 
                     page = 1
@@ -294,11 +318,14 @@ def sync_conversations(
                             break
                         page += 1
 
+                    report_progress(filter_name, offset, conv_id)
+
                 if len(conversations) < conv_page_size:
                     break
                 if cutoff_dt and not page_has_eligible_conversation:
                     break
                 offset += conv_page_size
+                report_progress(filter_name, offset, None)
 
     return {
         "conversations_synced": conversation_count,

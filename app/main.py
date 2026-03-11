@@ -34,6 +34,7 @@ sync_state: dict[str, Any] = {
     "finished_at": None,
     "last_error": None,
     "last_result": None,
+    "salesmessage_progress": None,
 }
 
 
@@ -381,6 +382,7 @@ def _run_hosted_sync(req: HostedSyncRequest) -> None:
         finished_at=None,
         last_error=None,
         last_result=None,
+        salesmessage_progress=None,
     )
     try:
         salesmessage_result = sync(
@@ -406,6 +408,7 @@ def _run_hosted_sync(req: HostedSyncRequest) -> None:
             finished_at=dt.datetime.now(dt.timezone.utc).isoformat(),
             last_result={"salesmessage": salesmessage_result, "daysmart": daysmart_result},
             last_error=None,
+            salesmessage_progress=None,
         )
     except Exception as exc:
         _set_sync_state(
@@ -442,6 +445,7 @@ def sync(req: SyncRequest) -> dict[str, Any]:
             max_message_pages_per_conversation=req.max_message_pages_per_conversation,
             target_inbox_ids=set(req.inbox_ids or [settings.youth_inbox_id]),
             min_last_message_at=req.min_last_message_at,
+            progress_callback=_set_sync_state,
         )
     except SalesmessageApiError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -462,6 +466,7 @@ def sync_start(req: HostedSyncRequest) -> dict[str, Any]:
         finished_at=None,
         last_error=None,
         last_result=None,
+        salesmessage_progress=None,
     )
     worker = threading.Thread(target=_run_hosted_sync, args=(req,), daemon=True)
     worker.start()
