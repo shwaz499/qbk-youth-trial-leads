@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
 import requests
@@ -15,6 +16,8 @@ class SalesmessageClient:
     token: str
     base_url: str
     timeout_seconds: int = 30
+    max_retries: int = 3
+    retry_backoff_seconds: float = 1.0
 
     def _request(self, method: str, path: str, params: dict[str, Any] | None = None) -> Any:
         if not self.token:
@@ -24,20 +27,35 @@ class SalesmessageClient:
             "Authorization": f"Bearer {self.token}",
             "Accept": "application/json",
         }
-        response = requests.request(
-            method=method,
-            url=url,
-            params=params,
-            headers=headers,
-            timeout=self.timeout_seconds,
-        )
-        if response.status_code >= 400:
-            raise SalesmessageApiError(
-                f"{method} {path} failed with {response.status_code}: {response.text[:500]}"
-            )
-        if not response.content:
-            return None
-        return response.json()
+        retryable_statuses = {429, 500, 502, 503, 504}
+        last_error: str | None = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    headers=headers,
+                    timeout=self.timeout_seconds,
+                )
+            except requests.RequestException as exc:
+                last_error = f"{method} {path} request error: {exc}"
+                if attempt >= self.max_retries:
+                    raise SalesmessageApiError(last_error) from exc
+                time.sleep(self.retry_backoff_seconds * attempt)
+                continue
+
+            if response.status_code < 400:
+                if not response.content:
+                    return None
+                return response.json()
+
+            last_error = f"{method} {path} failed with {response.status_code}: {response.text[:500]}"
+            if response.status_code not in retryable_statuses or attempt >= self.max_retries:
+                raise SalesmessageApiError(last_error)
+            time.sleep(self.retry_backoff_seconds * attempt)
+
+        raise SalesmessageApiError(last_error or f"{method} {path} failed")
 
     def list_conversations(
         self,
