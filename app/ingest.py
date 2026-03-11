@@ -13,6 +13,21 @@ def _utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def _parse_salesmessage_timestamp(value: str | None) -> dt.datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    cleaned = value.strip().replace("Z", "+00:00")
+    for candidate in (cleaned, cleaned.replace(" ", "T")):
+        try:
+            parsed = dt.datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=dt.timezone.utc)
+            return parsed.astimezone(dt.timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
 def _participant_name(conv: dict[str, Any]) -> str | None:
     participants = conv.get("participants")
     if not isinstance(participants, list) or not participants:
@@ -166,6 +181,7 @@ def sync_conversations(
     conv_page_size: int = 100,
     message_page_size: int = 100,
     target_inbox_ids: set[int] | None = None,
+    min_last_message_at: str | None = None,
 ) -> dict[str, int]:
     conversation_count = 0
     message_count = 0
@@ -173,6 +189,8 @@ def sync_conversations(
     message_pages_skipped = 0
     conversations_failed = 0
     conversations_filtered_out = 0
+    conversations_before_cutoff = 0
+    cutoff_dt = _parse_salesmessage_timestamp(min_last_message_at)
 
     with get_conn(db_path) as conn:
         known_last_message_at, known_latest_message_id = _load_existing_conversation_state(conn)
@@ -189,11 +207,18 @@ def sync_conversations(
                 if not conversations:
                     break
 
+                page_has_eligible_conversation = False
                 for conv in conversations:
                     conv_id = conv.get("id")
                     if not isinstance(conv_id, int) or conv_id in seen_ids:
                         continue
                     seen_ids.add(conv_id)
+
+                    remote_last_message_at = _parse_salesmessage_timestamp(conv.get("last_message_at"))
+                    if cutoff_dt and remote_last_message_at and remote_last_message_at < cutoff_dt:
+                        conversations_before_cutoff += 1
+                        continue
+                    page_has_eligible_conversation = True
 
                     existing_last_message_at = known_last_message_at.get(conv_id)
                     existing_latest_message_id = known_latest_message_id.get(conv_id)
@@ -256,6 +281,8 @@ def sync_conversations(
 
                 if len(conversations) < conv_page_size:
                     break
+                if cutoff_dt and not page_has_eligible_conversation:
+                    break
                 offset += conv_page_size
 
     return {
@@ -265,4 +292,5 @@ def sync_conversations(
         "message_pages_skipped": message_pages_skipped,
         "conversations_failed": conversations_failed,
         "conversations_filtered_out": conversations_filtered_out,
+        "conversations_before_cutoff": conversations_before_cutoff,
     }

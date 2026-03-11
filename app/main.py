@@ -39,9 +39,12 @@ sync_state: dict[str, Any] = {
 
 class SyncRequest(BaseModel):
     filters: list[str] = Field(
-        default_factory=lambda: ["open", "closed", "unread", "assigned", "unassigned"]
+        default_factory=lambda: ["open", "closed"]
     )
     inbox_ids: list[int] | None = None
+    min_last_message_at: str = Field(
+        default_factory=lambda: f"{dt.datetime.now().year}-01-01 00:00:00"
+    )
     conversation_page_size: int = 100
     message_page_size: int = 100
 
@@ -385,6 +388,7 @@ def _run_hosted_sync(req: HostedSyncRequest) -> None:
             SyncRequest(
                 filters=req.filters,
                 inbox_ids=req.inbox_ids,
+                min_last_message_at=req.min_last_message_at,
                 conversation_page_size=req.conversation_page_size,
                 message_page_size=req.message_page_size,
             )
@@ -436,6 +440,7 @@ def sync(req: SyncRequest) -> dict[str, Any]:
             conv_page_size=req.conversation_page_size,
             message_page_size=req.message_page_size,
             target_inbox_ids=set(req.inbox_ids or [settings.youth_inbox_id]),
+            min_last_message_at=req.min_last_message_at,
         )
     except SalesmessageApiError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
