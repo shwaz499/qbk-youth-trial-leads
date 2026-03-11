@@ -42,9 +42,7 @@ class SyncRequest(BaseModel):
         default_factory=lambda: ["open", "closed"]
     )
     inbox_ids: list[int] | None = None
-    min_last_message_at: str = Field(
-        default_factory=lambda: f"{dt.datetime.now().year}-01-01 00:00:00"
-    )
+    min_last_message_at: str | None = None
     conversation_page_size: int = 100
     message_page_size: int = 100
     max_message_pages_per_conversation: int = 2

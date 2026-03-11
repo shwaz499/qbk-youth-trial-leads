@@ -28,6 +28,17 @@ def _parse_salesmessage_timestamp(value: str | None) -> dt.datetime | None:
     return None
 
 
+def _default_min_last_message_at(
+    conn: sqlite3.Connection,
+    explicit_value: str | None,
+) -> dt.datetime | None:
+    if explicit_value:
+        return _parse_salesmessage_timestamp(explicit_value)
+    row = conn.execute("SELECT MAX(last_message_at) AS ts FROM conversations").fetchone()
+    latest = row["ts"] if row else None
+    return _parse_salesmessage_timestamp(latest)
+
+
 def _participant_name(conv: dict[str, Any]) -> str | None:
     participants = conv.get("participants")
     if not isinstance(participants, list) or not participants:
@@ -191,9 +202,9 @@ def sync_conversations(
     conversations_failed = 0
     conversations_filtered_out = 0
     conversations_before_cutoff = 0
-    cutoff_dt = _parse_salesmessage_timestamp(min_last_message_at)
 
     with get_conn(db_path) as conn:
+        cutoff_dt = _default_min_last_message_at(conn, min_last_message_at)
         known_last_message_at, known_latest_message_id = _load_existing_conversation_state(conn)
 
         seen_ids: set[int] = set()
