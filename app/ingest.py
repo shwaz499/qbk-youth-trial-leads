@@ -190,8 +190,8 @@ def sync_conversations(
     db_path: str,
     filters: list[str],
     conv_page_size: int = 100,
-    message_page_size: int = 100,
-    max_message_pages_per_conversation: int = 2,
+    message_page_size: int = 0,
+    max_message_pages_per_conversation: int = 0,
     target_inbox_ids: set[int] | None = None,
     min_last_message_at: str | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
@@ -282,6 +282,11 @@ def sync_conversations(
                     ):
                         conversations_unchanged += 1
                         report_progress(filter_name, offset, conv_id)
+                        continue
+
+                    if message_page_size <= 0 or max_message_pages_per_conversation <= 0:
+                        known_last_message_at[conv_id] = conv.get("last_message_at")
+                        report_progress(filter_name, offset, conv_id, phase="headers_only")
                         continue
 
                     page = 1

@@ -225,7 +225,7 @@
     <section class="hero">
       <div>
         <h1 class="title">Youth Trial Leads</h1>
-        <p class="subtitle">All 2026 Salesmessage leads from the Youth inbox that have a matching DaySmart account.</p>
+        <p class="subtitle">All 2026 Salesmessage leads from the Youth inbox that have a matching DaySmart account. Salesmessage is used for lead headers and conversation links; DaySmart drives the account, class, and membership signals.</p>
       </div>
       <div class="meta">
         <div id="lastRefreshed">Last refresh: --</div>
@@ -251,7 +251,6 @@
               <th>Parent Name</th>
               <th>Child's Name</th>
               <th>Phone</th>
-              <th>Free Trial Class</th>
               <th>Added To Class</th>
               <th>Membership</th>
             </tr>
@@ -305,13 +304,11 @@
       leadsBody.innerHTML = "";
 
       if (!items.length) {
-        leadsBody.innerHTML = '<tr><td colspan="6" class="empty">No qualifying youth trial leads found.</td></tr>';
+        leadsBody.innerHTML = '<tr><td colspan="5" class="empty">No qualifying youth trial leads found.</td></tr>';
         return;
       }
 
       for (const row of items) {
-        const className = row.trial_class_name || "Youth Free Trial";
-        const classWhen = row.trial_class_when_display || row.trial_class_when || "--";
         const leadKey = String(row.lead_key).replaceAll('"', "&quot;");
         const conversationUrl = row.conversation_url || "#";
         const parentName = row.contact_name || "--";
@@ -322,12 +319,6 @@
             <td>${row.parent_daysmart_url ? `<a href="${row.parent_daysmart_url}" target="_blank" rel="noreferrer">${parentName}</a>` : parentName}</td>
             <td>${row.child_daysmart_url ? `<a href="${row.child_daysmart_url}" target="_blank" rel="noreferrer">${childName}</a>` : childName}</td>
             <td class="mono"><a href="${conversationUrl}" target="_blank" rel="noreferrer">${row.contact_phone || "--"}</a></td>
-            <td>
-              <div class="class-meta">
-                <span class="class-name">${className}</span>
-                <span>${classWhen}</span>
-              </div>
-            </td>
             <td>
               <input class="lead-added" type="checkbox" style="width:auto;" ${row.added_to_class ? "checked" : ""} />
             </td>

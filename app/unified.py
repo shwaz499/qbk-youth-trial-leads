@@ -573,80 +573,10 @@ def sync_salesmessage_to_unified(db_path: str, youth_inbox_id: int) -> dict[str,
             trial_status = "confirmed"
         if any(word in recent_body for word in ["reschedule", "can't", "cannot", "won't", "not coming"]):
             trial_status = "declined"
-
-        with get_conn(db_path) as conn:
-            rows = conn.execute(
-                """
-                SELECT id, created_at, body, source, user_id, raw_json
-                FROM messages
-                WHERE conversation_id = ?
-                ORDER BY COALESCE(received_at, sent_at, created_at, id) DESC, id DESC
-                LIMIT 25
-                """,
-                (conv_row["id"],),
-            ).fetchall()
-        rows = list(reversed(rows))
-
         added_to_class = False
         account_created = False
-        done_prompt_seen = False
         trial_class_name = None
         trial_class_when = None
-        for msg in rows:
-            channel = "sms"
-            sentiment = None
-            text = _clean_text(msg["body"])
-            lower = text.lower()
-            if any(k in lower for k in ["thank", "great", "awesome", "perfect"]):
-                sentiment = "positive"
-            if any(k in lower for k in ["can't", "cannot", "not coming", "reschedule"]):
-                sentiment = "negative"
-            if _is_added_to_class(text):
-                added_to_class = True
-            if int(msg["user_id"] or 0) == 0 and _is_account_confirmation(text, done_prompt_seen):
-                account_created = True
-            if int(msg["user_id"] or 0) != 0 and (
-                "reply back with \"done\"" in lower
-                or "reply back with 'done'" in lower
-                or "created the account" in lower
-                or "created the daysmart account" in lower
-                or "have you already completed the account registration" in lower
-            ):
-                done_prompt_seen = True
-            candidate_name, candidate_when = _extract_trial_class_choice(text)
-            if candidate_name or candidate_when:
-                trial_class_name = candidate_name or trial_class_name
-                trial_class_when = candidate_when or trial_class_when
-
-            with get_conn(db_path) as conn:
-                conn.execute(
-                    """
-                    INSERT INTO youth_family_outreach (
-                        family_key, outreach_at, channel, summary_text, sentiment_hint,
-                        source_system, source_message_id, metadata_json, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(source_system, source_message_id) DO UPDATE SET
-                        outreach_at=excluded.outreach_at,
-                        summary_text=excluded.summary_text,
-                        sentiment_hint=excluded.sentiment_hint,
-                        metadata_json=excluded.metadata_json
-                    """,
-                    (
-                        family_key,
-                        msg["created_at"] or _utc_now(),
-                        channel,
-                        text[:500] if isinstance(text, str) else None,
-                        sentiment,
-                        "salesmessage",
-                        str(msg["id"]),
-                        _json({"user_id": msg["user_id"], "source": msg["source"]}),
-                        _utc_now(),
-                    ),
-                )
-            outreach += 1
-
-        if added_to_class:
-            account_created = True
 
         if int(conv_row["inbox_id"] or 0) != youth_inbox_id:
             continue
