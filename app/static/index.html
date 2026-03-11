@@ -236,7 +236,6 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <button class="btn btn-teal" id="btnSyncAll">Sync</button>
-          <button class="btn btn-blue" id="btnRefresh">Refresh List</button>
         </div>
         <div class="toolbar-right">
           <span class="pill" id="leadCount">0 leads</span>
@@ -373,12 +372,6 @@
         button.disabled = false;
       }
     }
-
-    q("btnRefresh").addEventListener("click", () => withButton(q("btnRefresh"), async () => {
-      setStatus("Refreshing lead list...");
-      await refreshLeads();
-      setStatus("Lead list refreshed.");
-    }));
 
     q("btnSyncAll").addEventListener("click", () => withButton(q("btnSyncAll"), async () => {
       setStatus("Syncing Salesmessage...");
