@@ -180,6 +180,7 @@ def sync_conversations(
     filters: list[str],
     conv_page_size: int = 100,
     message_page_size: int = 100,
+    max_message_pages_per_conversation: int = 2,
     target_inbox_ids: set[int] | None = None,
     min_last_message_at: str | None = None,
 ) -> dict[str, int]:
@@ -276,6 +277,8 @@ def sync_conversations(
                         if isinstance(last_page, int) and isinstance(current_page, int):
                             if current_page >= last_page:
                                 break
+                        if page >= max_message_pages_per_conversation:
+                            break
                         if len(batch) < message_page_size:
                             break
                         page += 1

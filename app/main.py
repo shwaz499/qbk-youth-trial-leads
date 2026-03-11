@@ -47,6 +47,7 @@ class SyncRequest(BaseModel):
     )
     conversation_page_size: int = 100
     message_page_size: int = 100
+    max_message_pages_per_conversation: int = 2
 
 
 class HostedSyncRequest(SyncRequest):
@@ -391,6 +392,7 @@ def _run_hosted_sync(req: HostedSyncRequest) -> None:
                 min_last_message_at=req.min_last_message_at,
                 conversation_page_size=req.conversation_page_size,
                 message_page_size=req.message_page_size,
+                max_message_pages_per_conversation=req.max_message_pages_per_conversation,
             )
         )
         _set_sync_state(stage="syncing_daysmart", last_result={"salesmessage": salesmessage_result})
@@ -439,6 +441,7 @@ def sync(req: SyncRequest) -> dict[str, Any]:
             filters=req.filters,
             conv_page_size=req.conversation_page_size,
             message_page_size=req.message_page_size,
+            max_message_pages_per_conversation=req.max_message_pages_per_conversation,
             target_inbox_ids=set(req.inbox_ids or [settings.youth_inbox_id]),
             min_last_message_at=req.min_last_message_at,
         )
