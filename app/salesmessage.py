@@ -62,11 +62,15 @@ class SalesmessageClient:
         filter_name: str,
         limit: int = 100,
         offset: int = 0,
+        inbox_id: int | None = None,
     ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"filter": filter_name, "limit": limit, "offset": offset}
+        if inbox_id is not None:
+            params["inbox_id"] = inbox_id
         payload = self._request(
             "GET",
             "/conversations",
-            params={"filter": filter_name, "limit": limit, "offset": offset},
+            params=params,
         )
         if isinstance(payload, list):
             return payload

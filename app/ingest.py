@@ -203,6 +203,7 @@ def sync_conversations(
                     filter_name=filter_name,
                     limit=conv_page_size,
                     offset=offset,
+                    inbox_id=(next(iter(target_inbox_ids)) if target_inbox_ids and len(target_inbox_ids) == 1 else None),
                 )
                 if not conversations:
                     break
