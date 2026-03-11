@@ -391,6 +391,15 @@
               `${progress.conversations_synced ?? 0} conversations`,
               `${progress.messages_synced ?? 0} messages`,
             ];
+            if (progress.phase) {
+              parts.push(progress.phase.replaceAll("_", " "));
+            }
+            if (progress.conversation_id) {
+              parts.push(`conv ${progress.conversation_id}`);
+            }
+            if (progress.message_page) {
+              parts.push(`page ${progress.message_page}`);
+            }
             if (progress.conversations_before_cutoff) {
               parts.push(`${progress.conversations_before_cutoff} before cutoff`);
             }

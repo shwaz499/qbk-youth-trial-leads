@@ -204,7 +204,13 @@ def sync_conversations(
     conversations_filtered_out = 0
     conversations_before_cutoff = 0
 
-    def report_progress(current_filter: str, offset_value: int, conversation_id: int | None = None) -> None:
+    def report_progress(
+        current_filter: str,
+        offset_value: int,
+        conversation_id: int | None = None,
+        phase: str | None = None,
+        message_page: int | None = None,
+    ) -> None:
         if progress_callback is None:
             return
         progress_callback(
@@ -213,6 +219,8 @@ def sync_conversations(
                     "filter": current_filter,
                     "offset": offset_value,
                     "conversation_id": conversation_id,
+                    "phase": phase,
+                    "message_page": message_page,
                     "conversations_synced": conversation_count,
                     "messages_synced": message_count,
                     "conversations_unchanged": conversations_unchanged,
@@ -278,6 +286,13 @@ def sync_conversations(
 
                     page = 1
                     while True:
+                        report_progress(
+                            filter_name,
+                            offset,
+                            conv_id,
+                            phase="fetching_messages",
+                            message_page=page,
+                        )
                         try:
                             batch, meta = client.get_messages_paginated(
                                 conversation_id=conv_id,
