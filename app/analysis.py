@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from .db import get_conn
+from .db import get_conn, is_postgres_url
 
 
 def _extract_output_text(completion: Any) -> str:
@@ -37,6 +37,37 @@ def search_messages(
     limit: int = 25,
     conversation_id: int | None = None,
 ) -> list[dict[str, Any]]:
+    if is_postgres_url(db_path):
+        sql = """
+        SELECT
+          m.id,
+          m.conversation_id,
+          m.body,
+          m.created_at,
+          c.contact_name,
+          c.contact_number
+        FROM messages m
+        LEFT JOIN conversations c ON c.id = m.conversation_id
+        WHERE to_tsvector('english', coalesce(m.body, '')) @@ plainto_tsquery('english', ?)
+        """
+        params: list[Any] = [query]
+        if conversation_id is not None:
+            sql += " AND m.conversation_id = ?"
+            params.append(conversation_id)
+
+        sql += """
+        ORDER BY ts_rank(
+          to_tsvector('english', coalesce(m.body, '')),
+          plainto_tsquery('english', ?)
+        ) DESC
+        LIMIT ?
+        """
+        params.extend([query, limit])
+
+        with get_conn(db_path) as conn:
+            rows = conn.execute(sql, params).fetchall()
+            return [dict(r) for r in rows]
+
     sql = """
     SELECT
       m.id,

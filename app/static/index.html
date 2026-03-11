@@ -373,13 +373,39 @@
       }
     }
 
+    async function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function pollSyncUntilDone() {
+      while (true) {
+        const data = await getJson("/sync/status");
+        const stage = data.stage || "idle";
+        if (data.running) {
+          const label = stage.replaceAll("_", " ");
+          setStatus(`Sync in progress: ${label}...`);
+          await wait(3000);
+          continue;
+        }
+        if (stage === "failed") {
+          throw new Error(data.last_error || "Sync failed.");
+        }
+        if (stage === "completed") {
+          setStatus("Sync complete.");
+          return data;
+        }
+        await wait(1000);
+      }
+    }
+
     q("btnSyncAll").addEventListener("click", () => withButton(q("btnSyncAll"), async () => {
-      setStatus("Syncing Salesmessage...");
-      await sendJson("/sync", "POST", {});
-      setStatus("Syncing DaySmart...");
-      await sendJson("/sync/daysmart", "POST", { max_pages: 40, page_size: 200 });
+      setStatus("Starting sync...");
+      await sendJson("/sync/start", "POST", {
+        daysmart_max_pages: 40,
+        daysmart_page_size: 200,
+      });
+      await pollSyncUntilDone();
       await refreshLeads();
-      setStatus("Sync complete.");
     }));
 
     refreshLeads()

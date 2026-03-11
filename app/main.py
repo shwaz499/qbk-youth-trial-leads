@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import threading
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,15 @@ settings = get_settings()
 init_db(settings.database_url)
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+sync_state_lock = threading.Lock()
+sync_state: dict[str, Any] = {
+    "running": False,
+    "stage": "idle",
+    "started_at": None,
+    "finished_at": None,
+    "last_error": None,
+    "last_result": None,
+}
 
 
 class SyncRequest(BaseModel):
@@ -34,6 +44,11 @@ class SyncRequest(BaseModel):
     inbox_ids: list[int] | None = None
     conversation_page_size: int = 100
     message_page_size: int = 100
+
+
+class HostedSyncRequest(SyncRequest):
+    daysmart_max_pages: int = 40
+    daysmart_page_size: int = 200
 
 
 class AskRequest(BaseModel):
@@ -105,6 +120,17 @@ def _daysmart_account_url(customer_id: int) -> str:
         "https://apps.daysmartrecreation.com/dash/admin/index.php"
         f"?Action=CustomerInfo&CustomerID={customer_id}&company={company}"
     )
+
+
+def _set_sync_state(**updates: Any) -> dict[str, Any]:
+    with sync_state_lock:
+        sync_state.update(updates)
+        return dict(sync_state)
+
+
+def _get_sync_state() -> dict[str, Any]:
+    with sync_state_lock:
+        return dict(sync_state)
 
 
 def _customer_attrs(customer_row: dict[str, Any]) -> dict[str, Any]:
@@ -345,6 +371,47 @@ def _daysmart_memberships(conn: Any, customer_ids: list[int]) -> list[str]:
     return items
 
 
+def _run_hosted_sync(req: HostedSyncRequest) -> None:
+    _set_sync_state(
+        running=True,
+        stage="syncing_salesmessage",
+        started_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        finished_at=None,
+        last_error=None,
+        last_result=None,
+    )
+    try:
+        salesmessage_result = sync(
+            SyncRequest(
+                filters=req.filters,
+                inbox_ids=req.inbox_ids,
+                conversation_page_size=req.conversation_page_size,
+                message_page_size=req.message_page_size,
+            )
+        )
+        _set_sync_state(stage="syncing_daysmart", last_result={"salesmessage": salesmessage_result})
+        daysmart_result = sync_daysmart(
+            DaySmartSyncRequest(
+                max_pages=req.daysmart_max_pages,
+                page_size=req.daysmart_page_size,
+            )
+        )
+        _set_sync_state(
+            running=False,
+            stage="completed",
+            finished_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+            last_result={"salesmessage": salesmessage_result, "daysmart": daysmart_result},
+            last_error=None,
+        )
+    except Exception as exc:
+        _set_sync_state(
+            running=False,
+            stage="failed",
+            finished_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+            last_error=str(exc),
+        )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -375,6 +442,29 @@ def sync(req: SyncRequest) -> dict[str, Any]:
     unified_stats = sync_salesmessage_to_unified(settings.database_url, settings.youth_inbox_id)
     risk_stats = recompute_risk_alerts(settings.database_url)
     return {"ok": True, **stats, "unified": unified_stats, "risk": risk_stats}
+
+
+@app.post("/sync/start")
+def sync_start(req: HostedSyncRequest) -> dict[str, Any]:
+    current = _get_sync_state()
+    if current.get("running"):
+        return {"ok": True, "started": False, **current}
+    _set_sync_state(
+        running=True,
+        stage="queued",
+        started_at=dt.datetime.now(dt.timezone.utc).isoformat(),
+        finished_at=None,
+        last_error=None,
+        last_result=None,
+    )
+    worker = threading.Thread(target=_run_hosted_sync, args=(req,), daemon=True)
+    worker.start()
+    return {"ok": True, "started": True, **_get_sync_state()}
+
+
+@app.get("/sync/status")
+def sync_status() -> dict[str, Any]:
+    return {"ok": True, **_get_sync_state()}
 
 
 @app.post("/sync/daysmart")
