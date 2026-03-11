@@ -125,9 +125,14 @@ def _daysmart_account_url(customer_id: int) -> str:
     )
 
 
-def _set_sync_state(**updates: Any) -> dict[str, Any]:
+def _set_sync_state(updates: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    if updates:
+        merged.update(updates)
+    if kwargs:
+        merged.update(kwargs)
     with sync_state_lock:
-        sync_state.update(updates)
+        sync_state.update(merged)
         return dict(sync_state)
 
 
