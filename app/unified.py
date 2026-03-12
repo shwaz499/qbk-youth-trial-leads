@@ -127,37 +127,53 @@ def _upsert_family(
     primary_contact_email: str | None,
     family_status: str,
     metadata: dict[str, Any],
+    conn: Any | None = None,
 ) -> None:
     now = _utc_now()
-    with get_conn(db_path) as conn:
-        conn.execute(
-            """
-            INSERT INTO youth_families (
-                family_key, primary_contact_name, primary_contact_phone, primary_contact_email,
-                family_status, source_system, source_ref, metadata_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(family_key) DO UPDATE SET
-                primary_contact_name=excluded.primary_contact_name,
-                primary_contact_phone=excluded.primary_contact_phone,
-                primary_contact_email=excluded.primary_contact_email,
-                family_status=excluded.family_status,
-                source_ref=excluded.source_ref,
-                metadata_json=excluded.metadata_json,
-                updated_at=excluded.updated_at
-            """,
-            (
-                family_key,
-                primary_contact_name,
-                primary_contact_phone,
-                primary_contact_email,
-                family_status,
-                source_system,
-                source_ref,
-                _json(metadata),
-                now,
-                now,
-            ),
-        )
+    owns_conn = conn is None
+    if conn is None:
+        with get_conn(db_path) as fresh_conn:
+            _upsert_family(
+                db_path,
+                family_key=family_key,
+                source_system=source_system,
+                source_ref=source_ref,
+                primary_contact_name=primary_contact_name,
+                primary_contact_phone=primary_contact_phone,
+                primary_contact_email=primary_contact_email,
+                family_status=family_status,
+                metadata=metadata,
+                conn=fresh_conn,
+            )
+        return
+    conn.execute(
+        """
+        INSERT INTO youth_families (
+            family_key, primary_contact_name, primary_contact_phone, primary_contact_email,
+            family_status, source_system, source_ref, metadata_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(family_key) DO UPDATE SET
+            primary_contact_name=excluded.primary_contact_name,
+            primary_contact_phone=excluded.primary_contact_phone,
+            primary_contact_email=excluded.primary_contact_email,
+            family_status=excluded.family_status,
+            source_ref=excluded.source_ref,
+            metadata_json=excluded.metadata_json,
+            updated_at=excluded.updated_at
+        """,
+        (
+            family_key,
+            primary_contact_name,
+            primary_contact_phone,
+            primary_contact_email,
+            family_status,
+            source_system,
+            source_ref,
+            _json(metadata),
+            now,
+            now,
+        ),
+    )
 
 
 def _upsert_child(
@@ -172,39 +188,55 @@ def _upsert_child(
     source_system: str,
     source_ref: str,
     metadata: dict[str, Any],
+    conn: Any | None = None,
 ) -> None:
     now = _utc_now()
-    with get_conn(db_path) as conn:
-        conn.execute(
-            """
-            INSERT INTO youth_children (
-                child_key, family_key, child_name, program_track, started_at, is_active,
-                source_system, source_ref, metadata_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(child_key) DO UPDATE SET
-                family_key=excluded.family_key,
-                child_name=excluded.child_name,
-                program_track=excluded.program_track,
-                started_at=excluded.started_at,
-                is_active=excluded.is_active,
-                source_ref=excluded.source_ref,
-                metadata_json=excluded.metadata_json,
-                updated_at=excluded.updated_at
-            """,
-            (
-                child_key,
-                family_key,
-                child_name,
-                program_track,
-                started_at,
-                1 if is_active else 0,
-                source_system,
-                source_ref,
-                _json(metadata),
-                now,
-                now,
-            ),
-        )
+    if conn is None:
+        with get_conn(db_path) as fresh_conn:
+            _upsert_child(
+                db_path,
+                child_key=child_key,
+                family_key=family_key,
+                child_name=child_name,
+                program_track=program_track,
+                started_at=started_at,
+                is_active=is_active,
+                source_system=source_system,
+                source_ref=source_ref,
+                metadata=metadata,
+                conn=fresh_conn,
+            )
+        return
+    conn.execute(
+        """
+        INSERT INTO youth_children (
+            child_key, family_key, child_name, program_track, started_at, is_active,
+            source_system, source_ref, metadata_json, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(child_key) DO UPDATE SET
+            family_key=excluded.family_key,
+            child_name=excluded.child_name,
+            program_track=excluded.program_track,
+            started_at=excluded.started_at,
+            is_active=excluded.is_active,
+            source_ref=excluded.source_ref,
+            metadata_json=excluded.metadata_json,
+            updated_at=excluded.updated_at
+        """,
+        (
+            child_key,
+            family_key,
+            child_name,
+            program_track,
+            started_at,
+            1 if is_active else 0,
+            source_system,
+            source_ref,
+            _json(metadata),
+            now,
+            now,
+        ),
+    )
 
 
 def _upsert_trial_lead(
@@ -274,7 +306,7 @@ def _upsert_trial_lead(
     )
 
 
-def _upsert_daysmart_customer(db_path: str, row: dict[str, Any]) -> None:
+def _upsert_daysmart_customer(db_path: str, row: dict[str, Any], *, conn: Any | None = None) -> None:
     customer_id = _as_int(row.get("id"))
     if customer_id is None:
         return
@@ -293,55 +325,58 @@ def _upsert_daysmart_customer(db_path: str, row: dict[str, Any]) -> None:
             *(_relationship_ids(relationships.get("spouses"))),
         }
     )
-    with get_conn(db_path) as conn:
-        conn.execute(
-            """
-            INSERT INTO daysmart_customers (
-                customer_id, full_name, email, phone_day, phone_mobile, phone_night, phone_emergency,
-                normalized_name, normalized_email, normalized_phone_day, normalized_phone_mobile,
-                normalized_phone_night, normalized_phone_emergency, child_ids_json, family_ids_json,
-                api_url, raw_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(customer_id) DO UPDATE SET
-                full_name=excluded.full_name,
-                email=excluded.email,
-                phone_day=excluded.phone_day,
-                phone_mobile=excluded.phone_mobile,
-                phone_night=excluded.phone_night,
-                phone_emergency=excluded.phone_emergency,
-                normalized_name=excluded.normalized_name,
-                normalized_email=excluded.normalized_email,
-                normalized_phone_day=excluded.normalized_phone_day,
-                normalized_phone_mobile=excluded.normalized_phone_mobile,
-                normalized_phone_night=excluded.normalized_phone_night,
-                normalized_phone_emergency=excluded.normalized_phone_emergency,
-                child_ids_json=excluded.child_ids_json,
-                family_ids_json=excluded.family_ids_json,
-                api_url=excluded.api_url,
-                raw_json=excluded.raw_json,
-                updated_at=excluded.updated_at
-            """,
-            (
-                customer_id,
-                full_name,
-                attrs.get("email"),
-                attrs.get("phone_day"),
-                attrs.get("phone_mobile"),
-                attrs.get("phone_night"),
-                attrs.get("phone_emergency"),
-                _normalize_name(full_name),
-                _normalize_email(attrs.get("email")),
-                _normalize_phone(attrs.get("phone_day")),
-                _normalize_phone(attrs.get("phone_mobile")),
-                _normalize_phone(attrs.get("phone_night")),
-                _normalize_phone(attrs.get("phone_emergency")),
-                _json(child_ids),
-                _json(family_ids),
-                ((row.get("links") or {}) if isinstance(row.get("links"), dict) else {}).get("self"),
-                _json(row),
-                _utc_now(),
-            ),
-        )
+    if conn is None:
+        with get_conn(db_path) as fresh_conn:
+            _upsert_daysmart_customer(db_path, row, conn=fresh_conn)
+        return
+    conn.execute(
+        """
+        INSERT INTO daysmart_customers (
+            customer_id, full_name, email, phone_day, phone_mobile, phone_night, phone_emergency,
+            normalized_name, normalized_email, normalized_phone_day, normalized_phone_mobile,
+            normalized_phone_night, normalized_phone_emergency, child_ids_json, family_ids_json,
+            api_url, raw_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(customer_id) DO UPDATE SET
+            full_name=excluded.full_name,
+            email=excluded.email,
+            phone_day=excluded.phone_day,
+            phone_mobile=excluded.phone_mobile,
+            phone_night=excluded.phone_night,
+            phone_emergency=excluded.phone_emergency,
+            normalized_name=excluded.normalized_name,
+            normalized_email=excluded.normalized_email,
+            normalized_phone_day=excluded.normalized_phone_day,
+            normalized_phone_mobile=excluded.normalized_phone_mobile,
+            normalized_phone_night=excluded.normalized_phone_night,
+            normalized_phone_emergency=excluded.normalized_phone_emergency,
+            child_ids_json=excluded.child_ids_json,
+            family_ids_json=excluded.family_ids_json,
+            api_url=excluded.api_url,
+            raw_json=excluded.raw_json,
+            updated_at=excluded.updated_at
+        """,
+        (
+            customer_id,
+            full_name,
+            attrs.get("email"),
+            attrs.get("phone_day"),
+            attrs.get("phone_mobile"),
+            attrs.get("phone_night"),
+            attrs.get("phone_emergency"),
+            _normalize_name(full_name),
+            _normalize_email(attrs.get("email")),
+            _normalize_phone(attrs.get("phone_day")),
+            _normalize_phone(attrs.get("phone_mobile")),
+            _normalize_phone(attrs.get("phone_night")),
+            _normalize_phone(attrs.get("phone_emergency")),
+            _json(child_ids),
+            _json(family_ids),
+            ((row.get("links") or {}) if isinstance(row.get("links"), dict) else {}).get("self"),
+            _json(row),
+            _utc_now(),
+        ),
+    )
 
 
 def _upsert_daysmart_membership(
@@ -349,6 +384,7 @@ def _upsert_daysmart_membership(
     row: dict[str, Any],
     *,
     product_name: str | None,
+    conn: Any | None = None,
 ) -> None:
     membership_id = _as_int(row.get("id"))
     if membership_id is None:
@@ -356,8 +392,11 @@ def _upsert_daysmart_membership(
     attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
     bill_customer_id = _as_int(attrs.get("bill_cust_id"))
     product_id = _as_int(attrs.get("prod_id"))
-    with get_conn(db_path) as conn:
-        conn.execute(
+    if conn is None:
+        with get_conn(db_path) as fresh_conn:
+            _upsert_daysmart_membership(db_path, row, product_name=product_name, conn=fresh_conn)
+        return
+    conn.execute(
             """
             INSERT INTO daysmart_memberships (
                 membership_id, bill_customer_id, product_id, product_name,
@@ -384,15 +423,15 @@ def _upsert_daysmart_membership(
                 _json(row),
                 _utc_now(),
             ),
+    )
+    if bill_customer_id is not None:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO daysmart_customer_memberships (customer_id, membership_id)
+            VALUES (?, ?)
+            """,
+            (bill_customer_id, membership_id),
         )
-        if bill_customer_id is not None:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO daysmart_customer_memberships (customer_id, membership_id)
-                VALUES (?, ?)
-                """,
-                (bill_customer_id, membership_id),
-            )
 
 
 def _upsert_daysmart_class_registration(
@@ -400,6 +439,7 @@ def _upsert_daysmart_class_registration(
     *,
     source_type: str,
     row: dict[str, Any],
+    conn: Any | None = None,
 ) -> None:
     registration_id = _as_int(row.get("id"))
     if registration_id is None:
@@ -414,8 +454,16 @@ def _upsert_daysmart_class_registration(
     else:
         team_or_event_id = _as_int(attrs.get("event_id"))
         created_at = attrs.get("time") or attrs.get("created_at") or attrs.get("updated_at")
-    with get_conn(db_path) as conn:
-        conn.execute(
+    if conn is None:
+        with get_conn(db_path) as fresh_conn:
+            _upsert_daysmart_class_registration(
+                db_path,
+                source_type=source_type,
+                row=row,
+                conn=fresh_conn,
+            )
+        return
+    conn.execute(
             """
             INSERT INTO daysmart_class_registrations (
                 source_type, registration_id, customer_id, team_or_event_id,
@@ -437,7 +485,7 @@ def _upsert_daysmart_class_registration(
                 _json(row),
                 _utc_now(),
             ),
-        )
+    )
 
 
 def _is_added_to_class(text: str) -> bool:
@@ -689,101 +737,104 @@ def sync_daysmart_to_unified(
     memberships = 0
     class_registrations = 0
     product_name_cache: dict[int, str | None] = {}
+    with get_conn(db_path) as conn:
+        first_data, customer_last_page = client.list_customers(page_number=1, page_size=page_size)
+        if first_data:
+            start_page = max(1, customer_last_page - max_pages + 1)
+        else:
+            start_page = 1
+            customer_last_page = 0
+        for page in range(start_page, customer_last_page + 1):
+            data = first_data if page == 1 and start_page == 1 else client.list_customers(
+                page_number=page, page_size=page_size
+            )[0]
+            if not data:
+                continue
+            for row in data:
+                row_id = str(row.get("id"))
+                attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+                _upsert_daysmart_customer(db_path, row, conn=conn)
+                customers += 1
 
-    first_data, customer_last_page = client.list_customers(page_number=1, page_size=page_size)
-    if first_data:
-        start_page = max(1, customer_last_page - max_pages + 1)
-    else:
-        start_page = 1
-        customer_last_page = 0
-    for page in range(start_page, customer_last_page + 1):
-        data = first_data if page == 1 and start_page == 1 else client.list_customers(
-            page_number=page, page_size=page_size
-        )[0]
-        if not data:
-            continue
-        for row in data:
-            row_id = str(row.get("id"))
-            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
-            _upsert_daysmart_customer(db_path, row)
-            customers += 1
+                household_id = attrs.get("household_id") or attrs.get("family_id") or row_id
+                family_key = f"daysmart:family:{household_id}"
 
-            household_id = attrs.get("household_id") or attrs.get("family_id") or row_id
-            family_key = f"daysmart:family:{household_id}"
+                first = attrs.get("first_name") or ""
+                last = attrs.get("last_name") or ""
+                full_name = attrs.get("full_name") or f"{first} {last}".strip() or f"Customer {row_id}"
 
-            first = attrs.get("first_name") or ""
-            last = attrs.get("last_name") or ""
-            full_name = attrs.get("full_name") or f"{first} {last}".strip() or f"Customer {row_id}"
+                _upsert_family(
+                    db_path,
+                    family_key=family_key,
+                    source_system="daysmart",
+                    source_ref=str(household_id),
+                    primary_contact_name=attrs.get("parent_name") or full_name,
+                    primary_contact_phone=attrs.get("phone") or attrs.get("formatted_number"),
+                    primary_contact_email=attrs.get("email"),
+                    family_status="active" if not attrs.get("disabled") else "inactive",
+                    metadata=attrs,
+                    conn=conn,
+                )
+                families += 1
 
-            _upsert_family(
-                db_path,
-                family_key=family_key,
-                source_system="daysmart",
-                source_ref=str(household_id),
-                primary_contact_name=attrs.get("parent_name") or full_name,
-                primary_contact_phone=attrs.get("phone") or attrs.get("formatted_number"),
-                primary_contact_email=attrs.get("email"),
-                family_status="active" if not attrs.get("disabled") else "inactive",
-                metadata=attrs,
-            )
-            families += 1
+                child_key = f"daysmart:child:{row_id}"
+                _upsert_child(
+                    db_path,
+                    child_key=child_key,
+                    family_key=family_key,
+                    child_name=full_name,
+                    program_track=attrs.get("program") or attrs.get("group") or attrs.get("level"),
+                    started_at=attrs.get("created_at") or attrs.get("created"),
+                    is_active=not bool(attrs.get("disabled") or attrs.get("deleted_at")),
+                    source_system="daysmart",
+                    source_ref=row_id,
+                    metadata=attrs,
+                    conn=conn,
+                )
+                children += 1
 
-            child_key = f"daysmart:child:{row_id}"
-            _upsert_child(
-                db_path,
-                child_key=child_key,
-                family_key=family_key,
-                child_name=full_name,
-                program_track=attrs.get("program") or attrs.get("group") or attrs.get("level"),
-                started_at=attrs.get("created_at") or attrs.get("created"),
-                is_active=not bool(attrs.get("disabled") or attrs.get("deleted_at")),
-                source_system="daysmart",
-                source_ref=row_id,
-                metadata=attrs,
-            )
-            children += 1
-    first_data, membership_last_page = client.list_memberships(page_number=1, page_size=page_size)
-    if first_data:
-        start_page = max(1, membership_last_page - max_pages + 1)
-    else:
-        start_page = 1
-        membership_last_page = 0
-    for page in range(start_page, membership_last_page + 1):
-        data = first_data if page == 1 and start_page == 1 else client.list_memberships(
-            page_number=page, page_size=page_size
-        )[0]
-        if not data:
-            continue
-        for row in data:
-            attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
-            product_id = _as_int(attrs.get("prod_id"))
-            product_name = None
-            if product_id is not None:
-                if product_id not in product_name_cache:
-                    try:
-                        product = client.get_product(product_id)
-                        product_attrs = (
-                            product.get("attributes") if isinstance(product.get("attributes"), dict) else {}
-                        )
-                        product_name_cache[product_id] = product_attrs.get("name")
-                    except DaysmartApiError:
-                        product_name_cache[product_id] = None
-                product_name = product_name_cache.get(product_id)
-            _upsert_daysmart_membership(db_path, row, product_name=product_name)
-            memberships += 1
-    first_data, attendance_last_page = client.list_checkin_events(page_number=1, page_size=page_size)
-    if first_data:
-        start_page = max(1, attendance_last_page - max_pages + 1)
-    else:
-        start_page = 1
-        attendance_last_page = 0
-    for page in range(start_page, attendance_last_page + 1):
-        data = first_data if page == 1 and start_page == 1 else client.list_checkin_events(
-            page_number=page, page_size=page_size
-        )[0]
-        if not data:
-            continue
-        with get_conn(db_path) as conn:
+        first_data, membership_last_page = client.list_memberships(page_number=1, page_size=page_size)
+        if first_data:
+            start_page = max(1, membership_last_page - max_pages + 1)
+        else:
+            start_page = 1
+            membership_last_page = 0
+        for page in range(start_page, membership_last_page + 1):
+            data = first_data if page == 1 and start_page == 1 else client.list_memberships(
+                page_number=page, page_size=page_size
+            )[0]
+            if not data:
+                continue
+            for row in data:
+                attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+                product_id = _as_int(attrs.get("prod_id"))
+                product_name = None
+                if product_id is not None:
+                    if product_id not in product_name_cache:
+                        try:
+                            product = client.get_product(product_id)
+                            product_attrs = (
+                                product.get("attributes") if isinstance(product.get("attributes"), dict) else {}
+                            )
+                            product_name_cache[product_id] = product_attrs.get("name")
+                        except DaysmartApiError:
+                            product_name_cache[product_id] = None
+                    product_name = product_name_cache.get(product_id)
+                _upsert_daysmart_membership(db_path, row, product_name=product_name, conn=conn)
+                memberships += 1
+
+        first_data, attendance_last_page = client.list_checkin_events(page_number=1, page_size=page_size)
+        if first_data:
+            start_page = max(1, attendance_last_page - max_pages + 1)
+        else:
+            start_page = 1
+            attendance_last_page = 0
+        for page in range(start_page, attendance_last_page + 1):
+            data = first_data if page == 1 and start_page == 1 else client.list_checkin_events(
+                page_number=page, page_size=page_size
+            )[0]
+            if not data:
+                continue
             for row in data:
                 row_id = str(row.get("id"))
                 attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
@@ -820,40 +871,50 @@ def sync_daysmart_to_unified(
                 )
                 attendance += 1
 
-    first_data, registration_last_page = client.list_registrations(page_number=1, page_size=page_size)
-    if first_data:
-        start_page = max(1, registration_last_page - max_pages + 1)
-    else:
-        start_page = 1
-        registration_last_page = 0
-    for page in range(start_page, registration_last_page + 1):
-        data = first_data if page == 1 and start_page == 1 else client.list_registrations(
-            page_number=page, page_size=page_size
-        )[0]
-        if not data:
-            continue
-        for row in data:
-            _upsert_daysmart_class_registration(db_path, source_type="registration", row=row)
-            class_registrations += 1
+        first_data, registration_last_page = client.list_registrations(page_number=1, page_size=page_size)
+        if first_data:
+            start_page = max(1, registration_last_page - max_pages + 1)
+        else:
+            start_page = 1
+            registration_last_page = 0
+        for page in range(start_page, registration_last_page + 1):
+            data = first_data if page == 1 and start_page == 1 else client.list_registrations(
+                page_number=page, page_size=page_size
+            )[0]
+            if not data:
+                continue
+            for row in data:
+                _upsert_daysmart_class_registration(
+                    db_path,
+                    source_type="registration",
+                    row=row,
+                    conn=conn,
+                )
+                class_registrations += 1
 
-    first_data, event_registration_last_page = client.list_event_registrations(
-        page_number=1,
-        page_size=page_size,
-    )
-    if first_data:
-        start_page = max(1, event_registration_last_page - max_pages + 1)
-    else:
-        start_page = 1
-        event_registration_last_page = 0
-    for page in range(start_page, event_registration_last_page + 1):
-        data = first_data if page == 1 and start_page == 1 else client.list_event_registrations(
-            page_number=page, page_size=page_size
-        )[0]
-        if not data:
-            continue
-        for row in data:
-            _upsert_daysmart_class_registration(db_path, source_type="event_registration", row=row)
-            class_registrations += 1
+        first_data, event_registration_last_page = client.list_event_registrations(
+            page_number=1,
+            page_size=page_size,
+        )
+        if first_data:
+            start_page = max(1, event_registration_last_page - max_pages + 1)
+        else:
+            start_page = 1
+            event_registration_last_page = 0
+        for page in range(start_page, event_registration_last_page + 1):
+            data = first_data if page == 1 and start_page == 1 else client.list_event_registrations(
+                page_number=page, page_size=page_size
+            )[0]
+            if not data:
+                continue
+            for row in data:
+                _upsert_daysmart_class_registration(
+                    db_path,
+                    source_type="event_registration",
+                    row=row,
+                    conn=conn,
+                )
+                class_registrations += 1
 
     return {
         "families_upserted": families,

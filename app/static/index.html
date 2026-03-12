@@ -421,8 +421,8 @@
     q("btnSyncAll").addEventListener("click", () => withButton(q("btnSyncAll"), async () => {
       setStatus("Starting sync...");
       await sendJson("/sync/start", "POST", {
-        daysmart_max_pages: 40,
-        daysmart_page_size: 200,
+        daysmart_max_pages: 6,
+        daysmart_page_size: 100,
       });
       await pollSyncUntilDone();
       await refreshLeads();
