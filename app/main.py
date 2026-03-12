@@ -457,7 +457,11 @@ def sync(req: SyncRequest) -> dict[str, Any]:
     except SalesmessageApiError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _set_sync_state(stage="rebuilding_youth_leads")
-    unified_stats = sync_salesmessage_to_unified(settings.database_url, settings.youth_inbox_id)
+    unified_stats = sync_salesmessage_to_unified(
+        settings.database_url,
+        settings.youth_inbox_id,
+        cutoff_date=LEAD_CUTOFF_DATE,
+    )
     _set_sync_state(stage="recomputing_risk")
     risk_stats = recompute_risk_alerts(settings.database_url)
     return {"ok": True, **stats, "unified": unified_stats, "risk": risk_stats}

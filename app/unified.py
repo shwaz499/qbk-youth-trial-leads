@@ -521,94 +521,145 @@ def _extract_trial_class_choice(text: str) -> tuple[str | None, str | None]:
     return class_name, class_when
 
 
-def sync_salesmessage_to_unified(db_path: str, youth_inbox_id: int) -> dict[str, int]:
+def sync_salesmessage_to_unified(
+    db_path: str,
+    youth_inbox_id: int,
+    cutoff_date: str = "2026-03-01",
+) -> dict[str, int]:
     families = 0
     leads = 0
     outreach = 0
-    youth_lead_keys: set[str] = set()
-
+    now = _utc_now()
     with get_conn(db_path) as conn:
         conversations = conn.execute(
-            "SELECT id, contact_id, inbox_id, last_message_at, raw_json FROM conversations"
+            """
+            SELECT id, contact_id, inbox_id, last_message_at, raw_json
+            FROM conversations
+            WHERE coalesce(inbox_id, 0) = ?
+              AND coalesce(last_message_at, '') >= ?
+            ORDER BY coalesce(last_message_at, '') DESC
+            """,
+            (youth_inbox_id, cutoff_date),
         ).fetchall()
+        for conv_row in conversations:
+            conv = json.loads(conv_row["raw_json"])
+            contact = conv.get("contact") if isinstance(conv.get("contact"), dict) else {}
+            contact_id = contact.get("id") or conv_row["contact_id"]
+            if contact_id is None:
+                contact_id = conv_row["id"]
 
-    for conv_row in conversations:
-        conv = json.loads(conv_row["raw_json"])
-        contact = conv.get("contact") if isinstance(conv.get("contact"), dict) else {}
-        contact_id = contact.get("id") or conv_row["contact_id"]
-        if contact_id is None:
-            contact_id = conv_row["id"]
+            family_key = f"salesmessage:{contact_id}"
+            contact_name = contact.get("full_name") or (
+                f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or None
+            )
+            contact_phone = contact.get("formatted_number") or contact.get("number")
+            contact_email = contact.get("email")
 
-        family_key = f"salesmessage:{contact_id}"
-        contact_name = contact.get("full_name") or (
-            f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or None
-        )
-        contact_phone = contact.get("formatted_number") or contact.get("number")
-        contact_email = contact.get("email")
+            conn.execute(
+                """
+                INSERT INTO youth_families (
+                    family_key, primary_contact_name, primary_contact_phone, primary_contact_email,
+                    family_status, source_system, source_ref, metadata_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(family_key) DO UPDATE SET
+                    primary_contact_name=excluded.primary_contact_name,
+                    primary_contact_phone=excluded.primary_contact_phone,
+                    primary_contact_email=excluded.primary_contact_email,
+                    family_status=excluded.family_status,
+                    source_ref=excluded.source_ref,
+                    metadata_json=excluded.metadata_json,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    family_key,
+                    contact_name,
+                    contact_phone,
+                    contact_email,
+                    "active",
+                    "salesmessage",
+                    str(contact_id),
+                    _json({"conversation_id": conv_row["id"], "contact": contact}),
+                    now,
+                    now,
+                ),
+            )
+            families += 1
 
-        _upsert_family(
-            db_path,
-            family_key=family_key,
-            source_system="salesmessage",
-            source_ref=str(contact_id),
-            primary_contact_name=contact_name,
-            primary_contact_phone=contact_phone,
-            primary_contact_email=contact_email,
-            family_status="active",
-            metadata={"conversation_id": conv_row["id"], "contact": contact},
-        )
-        families += 1
+            tags: list[str] = []
+            for tag in contact.get("tags", []) if isinstance(contact.get("tags"), list) else []:
+                if isinstance(tag, dict) and isinstance(tag.get("name"), str):
+                    tags.append(tag["name"].strip().lower())
 
-        tags: list[str] = []
-        for tag in contact.get("tags", []) if isinstance(contact.get("tags"), list) else []:
-            if isinstance(tag, dict) and isinstance(tag.get("name"), str):
-                tags.append(tag["name"].strip().lower())
+            recent_message = (conv.get("recent_message") or {}).get("body", "")
+            recent_body = _clean_text(recent_message).lower()
+            trial_status = "unknown"
+            if "youth" in " ".join(tags) or "free trial" in recent_body:
+                trial_status = "invited"
+            if "confirmed class" in tags or "confirmed" in recent_body or "see you" in recent_body:
+                trial_status = "confirmed"
+            if any(word in recent_body for word in ["reschedule", "can't", "cannot", "won't", "not coming"]):
+                trial_status = "declined"
 
-        recent_message = (conv.get("recent_message") or {}).get("body", "")
-        recent_body = _clean_text(recent_message).lower()
-        trial_status = "unknown"
-        if "youth" in " ".join(tags) or "free trial" in recent_body:
-            trial_status = "invited"
-        if "confirmed class" in tags or "confirmed" in recent_body or "see you" in recent_body:
-            trial_status = "confirmed"
-        if any(word in recent_body for word in ["reschedule", "can't", "cannot", "won't", "not coming"]):
-            trial_status = "declined"
-        added_to_class = False
-        account_created = False
-        trial_class_name = None
-        trial_class_when = None
+            lead_key = f"salesmessage:conversation:{conv_row['id']}"
+            conn.execute(
+                """
+                INSERT INTO youth_trial_leads (
+                    lead_key, family_key, inbox_id, contact_name, contact_phone, trial_status, account_created,
+                    added_to_class, trial_class_name, trial_class_when, last_interaction_at,
+                    source_system, source_ref, metadata_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(lead_key) DO UPDATE SET
+                    family_key=excluded.family_key,
+                    inbox_id=excluded.inbox_id,
+                    contact_name=excluded.contact_name,
+                    contact_phone=excluded.contact_phone,
+                    trial_status=excluded.trial_status,
+                    account_created=CASE
+                        WHEN youth_trial_leads.account_created = 1 THEN 1
+                        ELSE excluded.account_created
+                    END,
+                    added_to_class=CASE
+                        WHEN youth_trial_leads.added_to_class = 1 THEN 1
+                        ELSE excluded.added_to_class
+                    END,
+                    trial_class_name=excluded.trial_class_name,
+                    trial_class_when=excluded.trial_class_when,
+                    last_interaction_at=excluded.last_interaction_at,
+                    metadata_json=excluded.metadata_json,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    lead_key,
+                    family_key,
+                    int(conv_row["inbox_id"] or 0),
+                    contact_name,
+                    contact_phone,
+                    trial_status,
+                    0,
+                    0,
+                    None,
+                    None,
+                    conv_row["last_message_at"],
+                    "salesmessage",
+                    str(conv_row["id"]),
+                    _json({"tags": tags, "recent_message": recent_message, "inbox_id": conv_row["inbox_id"]}),
+                    now,
+                    now,
+                ),
+            )
+            leads += 1
 
-        if int(conv_row["inbox_id"] or 0) != youth_inbox_id:
-            continue
-
-        lead_key = f"salesmessage:conversation:{conv_row['id']}"
-        youth_lead_keys.add(lead_key)
-        _upsert_trial_lead(
-            db_path,
-            lead_key=lead_key,
-            family_key=family_key,
-            inbox_id=int(conv_row["inbox_id"] or 0),
-            contact_name=contact_name,
-            contact_phone=contact_phone,
-            trial_status=trial_status,
-            account_created=account_created,
-            added_to_class=added_to_class,
-            trial_class_name=trial_class_name,
-            trial_class_when=trial_class_when,
-            last_interaction_at=conv_row["last_message_at"],
-            source_ref=str(conv_row["id"]),
-            metadata={"tags": tags, "recent_message": recent_message, "inbox_id": conv_row["inbox_id"]},
-        )
-        leads += 1
-
-    with get_conn(db_path) as conn:
         stale_rows = conn.execute(
             """
             SELECT lead_key
             FROM youth_trial_leads
-            WHERE source_system = 'salesmessage' AND coalesce(inbox_id, 0) != ?
+            WHERE source_system = 'salesmessage'
+              AND (
+                coalesce(inbox_id, 0) != ?
+                OR coalesce(last_interaction_at, '') < ?
+              )
             """,
-            (youth_inbox_id,),
+            (youth_inbox_id, cutoff_date),
         ).fetchall()
         stale_keys = [row["lead_key"] for row in stale_rows]
         if stale_keys:
