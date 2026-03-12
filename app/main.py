@@ -8,6 +8,7 @@ import os
 import re
 import threading
 import unicodedata
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -316,6 +317,156 @@ def _daysmart_has_class_registration(conn: Any, customer_id: int | None) -> bool
         (customer_id,),
     ).fetchone()
     return row is not None
+
+
+def _daysmart_client() -> DaysmartClient:
+    return DaysmartClient(
+        client_id=settings.daysmart_api_client_id,
+        client_secret=settings.daysmart_api_secret,
+        base_url=settings.daysmart_base_url,
+    )
+
+
+@lru_cache(maxsize=2048)
+def _daysmart_team_summary(team_id: int) -> tuple[str | None, str | None]:
+    client = _daysmart_client()
+    payload = client._get(f"/api/v1/teams/{team_id}")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
+    return attrs.get("name"), attrs.get("start_date")
+
+
+@lru_cache(maxsize=2048)
+def _daysmart_event_summary(event_id: int) -> tuple[str | None, str | None]:
+    client = _daysmart_client()
+    payload = client._get(f"/api/v1/events/{event_id}")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
+    name = attrs.get("desc") or attrs.get("name")
+    home_team_id = attrs.get("hteam_id")
+    if not name and home_team_id:
+        try:
+            team_name, _ = _daysmart_team_summary(int(home_team_id))
+            name = team_name or name
+        except Exception:
+            pass
+    return name, attrs.get("start")
+
+
+def _format_daysmart_class_date(value: str | None) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    parsed = None
+    cleaned = value.strip().replace("Z", "+00:00")
+    for candidate in (cleaned, cleaned.replace(" ", "T")):
+        try:
+            parsed = dt.datetime.fromisoformat(candidate)
+            break
+        except ValueError:
+            continue
+    if parsed is None:
+        try:
+            parsed = dt.datetime.strptime(cleaned[:19], "%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            try:
+                parsed = dt.datetime.strptime(cleaned[:19], "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                return value[:10]
+    has_time = bool(re.search(r"\d{1,2}:\d{2}:\d{2}", cleaned))
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone()
+        return parsed.strftime("%a, %-m/%-d/%y %-I:%M %p")
+    return parsed.strftime("%a, %-m/%-d/%y %-I:%M %p") if has_time else parsed.strftime("%a, %-m/%-d/%y")
+
+
+def _clean_trial_class_name(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if cleaned.startswith("Junior Classes - "):
+        cleaned = cleaned[len("Junior Classes - "):].strip()
+    cleaned = re.sub(r"\(\s*(\d+)\s*-\s*(\d+)\s*y/o\s*\)", r"(\1-\2)", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned or None
+
+
+def _is_youth_class_name(value: str | None) -> bool:
+    if not isinstance(value, str):
+        return False
+    lowered = value.lower()
+    return any(token in lowered for token in ("seals", "cubs", "beach lions"))
+
+
+@lru_cache(maxsize=2048)
+def _daysmart_customer_event_registrations(customer_id: int) -> list[dict[str, Any]]:
+    client = _daysmart_client()
+    payload = client._get(
+        "/api/v1/event-registrations",
+        params={
+            "page[number]": 1,
+            "page[size]": 100,
+            "filter[customer_id]": customer_id,
+            "include": "event",
+        },
+    )
+    data = payload.get("data") if isinstance(payload, dict) else []
+    included = payload.get("included") if isinstance(payload, dict) else []
+    if not isinstance(data, list):
+        data = []
+    if not isinstance(included, list):
+        included = []
+    included_events = {
+        int(item["id"]): item
+        for item in included
+        if isinstance(item, dict)
+        and item.get("type") == "events"
+        and str(item.get("id", "")).isdigit()
+    }
+    rows: list[dict[str, Any]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
+        event_id = attrs.get("event_id")
+        event = included_events.get(int(event_id)) if str(event_id).isdigit() else None
+        event_attrs = event.get("attributes") if isinstance(event, dict) and isinstance(event.get("attributes"), dict) else {}
+        rows.append(
+            {
+                "customer_id": customer_id,
+                "registration_time": attrs.get("time"),
+                "event_id": int(event_id) if str(event_id).isdigit() else None,
+                "event_start": event_attrs.get("start"),
+                "event_home_team_id": event_attrs.get("hteam_id"),
+                "event_desc": event_attrs.get("desc") or event_attrs.get("name"),
+            }
+        )
+    return rows
+
+
+def _daysmart_first_class(conn: Any, customer_ids: list[int]) -> tuple[str | None, str | None]:
+    if not customer_ids:
+        return None, None
+    rows: list[dict[str, Any]] = []
+    for customer_id in customer_ids:
+        try:
+            rows.extend(_daysmart_customer_event_registrations(int(customer_id)))
+        except Exception:
+            continue
+    rows.sort(key=lambda row: (row.get("event_start") or "", row.get("registration_time") or ""))
+    for row in rows:
+        name = _clean_trial_class_name(row.get("event_desc"))
+        if not name and row.get("event_home_team_id"):
+            try:
+                team_name, _ = _daysmart_team_summary(int(row["event_home_team_id"]))
+                name = _clean_trial_class_name(team_name)
+            except Exception:
+                pass
+        if not _is_youth_class_name(name):
+            continue
+        start_at = row.get("event_start") or row.get("registration_time")
+        if name or start_at:
+            return name, _format_daysmart_class_date(start_at)
+    return None, None
 
 
 def _format_time_component(value: str) -> str:
@@ -750,16 +901,13 @@ def dashboard_trial_leads(limit: int = 1000) -> dict[str, Any]:
             related_customer_ids = _related_daysmart_customer_ids(parent_customer, child_customer)
             if related_customer_ids:
                 memberships = _daysmart_memberships(conn, related_customer_ids)
-            child_class_signal = _daysmart_has_class_registration(
-                conn,
-                item["child_daysmart_customer_id"],
-            )
-            if not child_class_signal and item["child_daysmart_customer_id"] is None:
-                child_class_signal = _daysmart_has_class_registration(
-                    conn,
-                    item["parent_daysmart_customer_id"],
-                )
-            item["added_to_class"] = bool(child_class_signal or item["added_to_class"])
+            first_class_name, first_class_date = _daysmart_first_class(conn, related_customer_ids)
+            item["free_trial_class_name"] = first_class_name
+            item["free_trial_class_date"] = first_class_date
+            if first_class_name and first_class_date:
+                item["free_trial_class_display"] = f"{first_class_name} - {first_class_date}"
+            else:
+                item["free_trial_class_display"] = first_class_name or first_class_date or ""
 
             item["memberships"] = memberships
             item["has_membership"] = bool(memberships)

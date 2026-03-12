@@ -313,7 +313,7 @@
               <th>Parent Name</th>
               <th>Child's Name</th>
               <th>Phone</th>
-              <th>Added To Class</th>
+              <th>Free Trial Class</th>
               <th>Membership</th>
             </tr>
           </thead>
@@ -431,33 +431,10 @@
             <td>${row.parent_daysmart_url ? `<a href="${row.parent_daysmart_url}" target="_blank" rel="noreferrer">${parentName}</a>` : parentName}</td>
             <td>${row.child_daysmart_url ? `<a href="${row.child_daysmart_url}" target="_blank" rel="noreferrer">${childName}</a>` : childName}</td>
             <td class="mono"><a href="${conversationUrl}" target="_blank" rel="noreferrer">${row.contact_phone || "--"}</a></td>
-            <td>
-              <input class="lead-added" type="checkbox" style="width:auto;" ${row.added_to_class ? "checked" : ""} />
-            </td>
+            <td>${row.free_trial_class_display || ""}</td>
             <td><input type="checkbox" style="width:auto;" ${row.has_membership ? "checked" : ""} disabled /></td>
           </tr>
         `);
-      }
-
-      for (const checkbox of document.querySelectorAll(".lead-added")) {
-        checkbox.addEventListener("change", async (event) => {
-          const tr = event.target.closest("tr");
-          const leadKey = tr.getAttribute("data-lead-key");
-          const addedToClass = tr.querySelector(".lead-added").checked;
-          const input = event.target;
-          input.disabled = true;
-          try {
-            await sendJson(`/dashboard/trial-leads/${encodeURIComponent(leadKey)}`, "PATCH", {
-              added_to_class: addedToClass,
-            });
-            setStatus(`Updated ${leadKey}`);
-          } catch (error) {
-            input.checked = !addedToClass;
-            setStatus(`Update failed: ${error.message}`, true);
-          } finally {
-            input.disabled = false;
-          }
-        });
       }
     }
 
