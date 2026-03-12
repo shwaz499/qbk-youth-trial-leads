@@ -427,8 +427,9 @@ def _upsert_daysmart_membership(
     if bill_customer_id is not None:
         conn.execute(
             """
-            INSERT OR REPLACE INTO daysmart_customer_memberships (customer_id, membership_id)
+            INSERT INTO daysmart_customer_memberships (customer_id, membership_id)
             VALUES (?, ?)
+            ON CONFLICT(customer_id, membership_id) DO NOTHING
             """,
             (bill_customer_id, membership_id),
         )
