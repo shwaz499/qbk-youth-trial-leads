@@ -31,6 +31,53 @@
         var(--bg);
     }
 
+    .auth-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(19, 33, 43, 0.28);
+      backdrop-filter: blur(12px);
+    }
+
+    .auth-gate.hidden {
+      display: none;
+    }
+
+    .auth-card {
+      width: min(420px, 100%);
+      padding: 28px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: var(--card);
+      box-shadow: 0 18px 48px rgba(15, 34, 42, 0.16);
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .auth-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .auth-form input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 11px 12px;
+      font: inherit;
+    }
+
     .wrap {
       max-width: 1160px;
       margin: 0 auto;
@@ -221,6 +268,20 @@
   </style>
 </head>
 <body>
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card">
+      <h2>Protected Access</h2>
+      <p class="subtitle">Enter the shared password to open the Youth Trial Leads dashboard.</p>
+      <form class="auth-form" id="authForm">
+        <label>
+          <span>Password</span>
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        </label>
+        <button class="btn btn-teal" id="authSubmitButton" type="submit">Unlock</button>
+      </form>
+      <div class="status" id="authMessage">Enter the shared password to continue.</div>
+    </div>
+  </div>
   <main class="wrap">
     <section class="hero">
       <div>
@@ -236,6 +297,7 @@
       <div class="toolbar">
         <div class="toolbar-left">
           <button class="btn btn-teal" id="btnSyncAll">Sync</button>
+          <button class="btn btn-blue" id="btnLogout" type="button">Log Out</button>
         </div>
         <div class="toolbar-right">
           <span class="pill" id="leadCount">0 leads</span>
@@ -263,6 +325,11 @@
 
   <script>
     const q = (id) => document.getElementById(id);
+    const authGate = q("authGate");
+    const authForm = q("authForm");
+    const authPassword = q("authPassword");
+    const authSubmitButton = q("authSubmitButton");
+    const authMessage = q("authMessage");
     const leadsBody = q("leadsBody");
     const statusLine = q("statusLine");
     const leadCount = q("leadCount");
@@ -277,11 +344,29 @@
       return new Date().toLocaleString();
     }
 
+    function setAuthMessage(text, isError = false) {
+      authMessage.textContent = text;
+      authMessage.style.color = isError ? "#a52a2a" : "#597081";
+    }
+
+    function showAuthGate(text = "Enter the shared password to continue.") {
+      authGate.classList.remove("hidden");
+      setAuthMessage(text);
+    }
+
+    function hideAuthGate() {
+      authGate.classList.add("hidden");
+    }
+
     async function getJson(url) {
       const res = await fetch(url);
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (res.status === 401) {
+        showAuthGate("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
       if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
       return data;
     }
@@ -295,8 +380,35 @@
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (res.status === 401) {
+        showAuthGate("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
       if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
       return data;
+    }
+
+    async function login(password) {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      hideAuthGate();
+      setAuthMessage("Unlocked.");
+      await refreshLeads();
+      setStatus("Lead list ready.");
+    }
+
+    async function logout() {
+      await sendJson("/api/logout", "POST", {});
+      showAuthGate("Signed out.");
+      setStatus("Enter password to continue.");
+      authPassword.value = "";
     }
 
     function renderLeads(items) {
@@ -427,10 +539,33 @@
       await pollSyncUntilDone();
       await refreshLeads();
     }));
+    q("btnLogout").addEventListener("click", () => withButton(q("btnLogout"), logout));
+    authForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      authSubmitButton.disabled = true;
+      try {
+        await login(authPassword.value);
+        authPassword.value = "";
+      } catch (error) {
+        setAuthMessage(error.message || String(error), true);
+      } finally {
+        authSubmitButton.disabled = false;
+      }
+    });
 
-    refreshLeads()
-      .then(() => setStatus("Lead list ready."))
-      .catch((error) => setStatus(`Load failed: ${error.message}`, true));
+    getJson("/api/auth/status")
+      .then((data) => {
+        if (data.authenticated) {
+          hideAuthGate();
+          return refreshLeads().then(() => setStatus("Lead list ready."));
+        }
+        showAuthGate();
+        setStatus("Enter password to continue.");
+      })
+      .catch((error) => {
+        showAuthGate();
+        setStatus(`Load failed: ${error.message}`, true);
+      });
   </script>
 </body>
 </html>

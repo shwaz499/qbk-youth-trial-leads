@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import hmac
 import json
+import os
 import re
 import threading
 import unicodedata
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -38,6 +41,9 @@ sync_state: dict[str, Any] = {
 }
 LEAD_CUTOFF_DATE = "2026-03-01"
 LEAD_CUTOFF_TIMESTAMP = "2026-03-01T00:00:00+00:00"
+APP_PASSWORD = os.getenv("APP_PASSWORD", "qbkadmin")
+AUTH_COOKIE_NAME = "qbk_youth_auth"
+AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
 
 
 class SyncRequest(BaseModel):
@@ -81,6 +87,10 @@ class TrialLeadUpdateRequest(BaseModel):
 
 class AlertUpdateRequest(BaseModel):
     status: str
+
+
+class LoginRequest(BaseModel):
+    password: str
 
 
 def _normalize_phone(value: str | None) -> str | None:
@@ -141,6 +151,36 @@ def _set_sync_state(updates: dict[str, Any] | None = None, **kwargs: Any) -> dic
 def _get_sync_state() -> dict[str, Any]:
     with sync_state_lock:
         return dict(sync_state)
+
+
+def _auth_signature(payload: str) -> str:
+    return hmac.new(APP_PASSWORD.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _auth_token() -> str:
+    payload = "authenticated"
+    return f"{payload}.{_auth_signature(payload)}"
+
+
+def _is_authenticated(request: Request) -> bool:
+    token = request.cookies.get(AUTH_COOKIE_NAME, "")
+    if "." not in token:
+        return False
+    payload, signature = token.split(".", 1)
+    if payload != "authenticated":
+        return False
+    return hmac.compare_digest(signature, _auth_signature(payload))
+
+
+@app.middleware("http")
+async def require_auth(request: Request, call_next):
+    public_paths = {"/", "/health", "/api/auth/status", "/api/login"}
+    path = request.url.path
+    if path in public_paths or path.startswith("/static"):
+        return await call_next(request)
+    if not _is_authenticated(request):
+        return JSONResponse(status_code=401, content={"detail": "Authentication required."})
+    return await call_next(request)
 
 
 def _customer_attrs(customer_row: dict[str, Any]) -> dict[str, Any]:
@@ -434,6 +474,35 @@ def health() -> dict[str, str]:
 @app.get("/")
 def ui() -> FileResponse:
     return FileResponse(static_dir / "index.html")
+
+
+@app.get("/api/auth/status")
+def auth_status(request: Request) -> dict[str, bool]:
+    return {"authenticated": _is_authenticated(request)}
+
+
+@app.post("/api/login")
+def login(req: LoginRequest, request: Request) -> JSONResponse:
+    if req.password != APP_PASSWORD:
+        raise HTTPException(status_code=401, detail="Incorrect password.")
+    response = JSONResponse({"ok": True, "authenticated": True})
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=_auth_token(),
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+        max_age=AUTH_COOKIE_MAX_AGE,
+        path="/",
+    )
+    return response
+
+
+@app.post("/api/logout")
+def logout() -> JSONResponse:
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
+    return response
 
 
 @app.post("/sync")
