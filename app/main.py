@@ -36,6 +36,8 @@ sync_state: dict[str, Any] = {
     "last_result": None,
     "salesmessage_progress": None,
 }
+LEAD_CUTOFF_DATE = "2026-03-01"
+LEAD_CUTOFF_TIMESTAMP = "2026-03-01T00:00:00+00:00"
 
 
 class SyncRequest(BaseModel):
@@ -43,7 +45,7 @@ class SyncRequest(BaseModel):
         default_factory=lambda: ["open", "closed"]
     )
     inbox_ids: list[int] | None = None
-    min_last_message_at: str | None = None
+    min_last_message_at: str | None = LEAD_CUTOFF_TIMESTAMP
     conversation_page_size: int = 100
     message_page_size: int = 0
     max_message_pages_per_conversation: int = 0
@@ -634,11 +636,11 @@ def dashboard_trial_leads(limit: int = 1000) -> dict[str, Any]:
         LEFT JOIN conversations c ON c.id = CAST(t.source_ref AS INTEGER)
         WHERE t.inbox_id = ?
           AND (
-            coalesce(c.started_at, '') >= '2026-01-01'
-            OR coalesce(t.last_interaction_at, '') >= '2026-01-01'
+            coalesce(c.started_at, '') >= ?
+            OR coalesce(t.last_interaction_at, '') >= ?
           )
     """
-    params: list[Any] = [settings.youth_inbox_id]
+    params: list[Any] = [settings.youth_inbox_id, LEAD_CUTOFF_DATE, LEAD_CUTOFF_DATE]
     sql += " ORDER BY coalesce(last_interaction_at, '') DESC LIMIT ?"
     params.append(limit)
 
