@@ -222,6 +222,8 @@ CREATE TABLE IF NOT EXISTS daysmart_class_registrations (
     registration_id INTEGER NOT NULL,
     customer_id INTEGER NOT NULL,
     team_or_event_id INTEGER,
+    event_name TEXT,
+    event_start TEXT,
     created_at TEXT,
     raw_json TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -426,6 +428,8 @@ CREATE TABLE IF NOT EXISTS daysmart_class_registrations (
     registration_id BIGINT NOT NULL,
     customer_id BIGINT NOT NULL,
     team_or_event_id BIGINT,
+    event_name TEXT,
+    event_start TEXT,
     created_at TEXT,
     raw_json TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -537,3 +541,8 @@ def init_db(database_url: str) -> None:
             conn.execute("ALTER TABLE youth_trial_leads ADD COLUMN trial_class_name TEXT")
         if "trial_class_when" not in columns:
             conn.execute("ALTER TABLE youth_trial_leads ADD COLUMN trial_class_when TEXT")
+        registration_columns = _get_column_names(conn, database_url, "daysmart_class_registrations")
+        if "event_name" not in registration_columns:
+            conn.execute("ALTER TABLE daysmart_class_registrations ADD COLUMN event_name TEXT")
+        if "event_start" not in registration_columns:
+            conn.execute("ALTER TABLE daysmart_class_registrations ADD COLUMN event_start TEXT")

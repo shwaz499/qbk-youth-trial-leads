@@ -8,7 +8,6 @@ import os
 import re
 import threading
 import unicodedata
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +135,22 @@ def _daysmart_account_url(customer_id: int) -> str:
         "https://apps.daysmartrecreation.com/dash/admin/index.php"
         f"?Action=CustomerInfo&CustomerID={customer_id}&company={company}"
     )
+
+
+def _daysmart_client() -> DaysmartClient:
+    return DaysmartClient(
+        client_id=settings.daysmart_api_client_id,
+        client_secret=settings.daysmart_api_secret,
+        base_url=settings.daysmart_base_url,
+    )
+
+
+def _daysmart_team_summary(team_id: int) -> tuple[str | None, str | None]:
+    client = _daysmart_client()
+    payload = client._get(f"/api/v1/teams/{team_id}")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
+    return attrs.get("name"), attrs.get("start_date")
 
 
 def _set_sync_state(updates: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
@@ -319,40 +334,6 @@ def _daysmart_has_class_registration(conn: Any, customer_id: int | None) -> bool
     return row is not None
 
 
-def _daysmart_client() -> DaysmartClient:
-    return DaysmartClient(
-        client_id=settings.daysmart_api_client_id,
-        client_secret=settings.daysmart_api_secret,
-        base_url=settings.daysmart_base_url,
-    )
-
-
-@lru_cache(maxsize=2048)
-def _daysmart_team_summary(team_id: int) -> tuple[str | None, str | None]:
-    client = _daysmart_client()
-    payload = client._get(f"/api/v1/teams/{team_id}")
-    data = payload.get("data") if isinstance(payload, dict) else None
-    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
-    return attrs.get("name"), attrs.get("start_date")
-
-
-@lru_cache(maxsize=2048)
-def _daysmart_event_summary(event_id: int) -> tuple[str | None, str | None]:
-    client = _daysmart_client()
-    payload = client._get(f"/api/v1/events/{event_id}")
-    data = payload.get("data") if isinstance(payload, dict) else None
-    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
-    name = attrs.get("desc") or attrs.get("name")
-    home_team_id = attrs.get("hteam_id")
-    if not name and home_team_id:
-        try:
-            team_name, _ = _daysmart_team_summary(int(home_team_id))
-            name = team_name or name
-        except Exception:
-            pass
-    return name, attrs.get("start")
-
-
 def _format_daysmart_class_date(value: str | None) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -397,73 +378,68 @@ def _is_youth_class_name(value: str | None) -> bool:
     return any(token in lowered for token in ("seals", "cubs", "beach lions"))
 
 
-@lru_cache(maxsize=2048)
-def _daysmart_customer_event_registrations(customer_id: int) -> list[dict[str, Any]]:
+def _daysmart_event_summary(event_id: int) -> tuple[str | None, str | None]:
     client = _daysmart_client()
-    payload = client._get(
-        "/api/v1/event-registrations",
-        params={
-            "page[number]": 1,
-            "page[size]": 100,
-            "filter[customer_id]": customer_id,
-            "include": "event",
-        },
-    )
-    data = payload.get("data") if isinstance(payload, dict) else []
-    included = payload.get("included") if isinstance(payload, dict) else []
-    if not isinstance(data, list):
-        data = []
-    if not isinstance(included, list):
-        included = []
-    included_events = {
-        int(item["id"]): item
-        for item in included
-        if isinstance(item, dict)
-        and item.get("type") == "events"
-        and str(item.get("id", "")).isdigit()
-    }
-    rows: list[dict[str, Any]] = []
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
-        event_id = attrs.get("event_id")
-        event = included_events.get(int(event_id)) if str(event_id).isdigit() else None
-        event_attrs = event.get("attributes") if isinstance(event, dict) and isinstance(event.get("attributes"), dict) else {}
-        rows.append(
-            {
-                "customer_id": customer_id,
-                "registration_time": attrs.get("time"),
-                "event_id": int(event_id) if str(event_id).isdigit() else None,
-                "event_start": event_attrs.get("start"),
-                "event_home_team_id": event_attrs.get("hteam_id"),
-                "event_desc": event_attrs.get("desc") or event_attrs.get("name"),
-            }
-        )
-    return rows
+    payload = client._get(f"/api/v1/events/{event_id}")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    attrs = data.get("attributes") if isinstance(data, dict) and isinstance(data.get("attributes"), dict) else {}
+    name = attrs.get("desc") or attrs.get("name")
+    home_team_id = attrs.get("hteam_id")
+    if not name and home_team_id:
+        try:
+            team_name, _ = _daysmart_team_summary(int(home_team_id))
+            name = team_name or name
+        except Exception:
+            pass
+    return name, attrs.get("start")
 
 
 def _daysmart_first_class(conn: Any, customer_ids: list[int]) -> tuple[str | None, str | None]:
     if not customer_ids:
         return None, None
-    rows: list[dict[str, Any]] = []
-    for customer_id in customer_ids:
-        try:
-            rows.extend(_daysmart_customer_event_registrations(int(customer_id)))
-        except Exception:
-            continue
-    rows.sort(key=lambda row: (row.get("event_start") or "", row.get("registration_time") or ""))
+    placeholders = ",".join("?" for _ in customer_ids)
+    rows = conn.execute(
+        f"""
+        SELECT registration_id, team_or_event_id, event_name, event_start, created_at
+        FROM daysmart_class_registrations
+        WHERE source_type = 'event_registration'
+          AND customer_id IN ({placeholders})
+        ORDER BY coalesce(event_start, ''), coalesce(created_at, '')
+        """,
+        customer_ids,
+    ).fetchall()
     for row in rows:
-        name = _clean_trial_class_name(row.get("event_desc"))
-        if not name and row.get("event_home_team_id"):
+        row_dict = dict(row)
+        name = row_dict.get("event_name")
+        start_at = row_dict.get("event_start") or row_dict.get("created_at")
+        event_id = row_dict.get("team_or_event_id")
+        if (not name or not start_at) and event_id:
             try:
-                team_name, _ = _daysmart_team_summary(int(row["event_home_team_id"]))
-                name = _clean_trial_class_name(team_name)
+                fresh_name, fresh_start = _daysmart_event_summary(int(event_id))
+                if fresh_name or fresh_start:
+                    conn.execute(
+                        """
+                        UPDATE daysmart_class_registrations
+                        SET event_name = coalesce(?, event_name),
+                            event_start = coalesce(?, event_start),
+                            updated_at = ?
+                        WHERE source_type = 'event_registration'
+                          AND registration_id = ?
+                        """,
+                        (
+                            fresh_name,
+                            fresh_start,
+                            dt.datetime.now(dt.timezone.utc).isoformat(),
+                            row_dict["registration_id"],
+                        ),
+                    )
+                    name = fresh_name or name
+                    start_at = fresh_start or start_at
             except Exception:
                 pass
+        name = _clean_trial_class_name(name)
         if not _is_youth_class_name(name):
             continue
-        start_at = row.get("event_start") or row.get("registration_time")
         if name or start_at:
             return name, _format_daysmart_class_date(start_at)
     return None, None

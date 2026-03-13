@@ -440,6 +440,8 @@ def _upsert_daysmart_class_registration(
     *,
     source_type: str,
     row: dict[str, Any],
+    event_name: str | None = None,
+    event_start: str | None = None,
     conn: Any | None = None,
 ) -> None:
     registration_id = _as_int(row.get("id"))
@@ -461,6 +463,8 @@ def _upsert_daysmart_class_registration(
                 db_path,
                 source_type=source_type,
                 row=row,
+                event_name=event_name,
+                event_start=event_start,
                 conn=fresh_conn,
             )
         return
@@ -468,11 +472,13 @@ def _upsert_daysmart_class_registration(
             """
             INSERT INTO daysmart_class_registrations (
                 source_type, registration_id, customer_id, team_or_event_id,
-                created_at, raw_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                event_name, event_start, created_at, raw_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(source_type, registration_id) DO UPDATE SET
                 customer_id=excluded.customer_id,
                 team_or_event_id=excluded.team_or_event_id,
+                event_name=excluded.event_name,
+                event_start=excluded.event_start,
                 created_at=excluded.created_at,
                 raw_json=excluded.raw_json,
                 updated_at=excluded.updated_at
@@ -482,6 +488,8 @@ def _upsert_daysmart_class_registration(
                 registration_id,
                 customer_id,
                 team_or_event_id,
+                event_name,
+                event_start,
                 created_at,
                 _json(row),
                 _utc_now(),
@@ -738,6 +746,7 @@ def sync_daysmart_to_unified(
     memberships = 0
     class_registrations = 0
     product_name_cache: dict[int, str | None] = {}
+    event_cache: dict[int, tuple[str | None, str | None]] = {}
     with get_conn(db_path) as conn:
         first_data, customer_last_page = client.list_customers(page_number=1, page_size=page_size)
         if first_data:
@@ -909,10 +918,48 @@ def sync_daysmart_to_unified(
             if not data:
                 continue
             for row in data:
+                attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+                event_id = _as_int(attrs.get("event_id"))
+                event_name = None
+                event_start = None
+                if event_id is not None:
+                    cached = event_cache.get(event_id)
+                    if cached is None:
+                        try:
+                            payload = client._get(f"/api/v1/events/{event_id}")
+                            event = payload.get("data") if isinstance(payload, dict) else None
+                            event_attrs = (
+                                event.get("attributes")
+                                if isinstance(event, dict) and isinstance(event.get("attributes"), dict)
+                                else {}
+                            )
+                            event_name = event_attrs.get("desc") or event_attrs.get("name")
+                            if not event_name and event_attrs.get("hteam_id"):
+                                try:
+                                    team_payload = client._get(f"/api/v1/teams/{int(event_attrs['hteam_id'])}")
+                                    team = team_payload.get("data") if isinstance(team_payload, dict) else None
+                                    team_attrs = (
+                                        team.get("attributes")
+                                        if isinstance(team, dict) and isinstance(team.get("attributes"), dict)
+                                        else {}
+                                    )
+                                    event_name = team_attrs.get("name") or event_name
+                                except DaysmartApiError:
+                                    pass
+                            cached = (
+                                event_name,
+                                event_attrs.get("start"),
+                            )
+                        except DaysmartApiError:
+                            cached = (None, None)
+                        event_cache[event_id] = cached
+                    event_name, event_start = cached
                 _upsert_daysmart_class_registration(
                     db_path,
                     source_type="event_registration",
                     row=row,
+                    event_name=event_name,
+                    event_start=event_start,
                     conn=conn,
                 )
                 class_registrations += 1
