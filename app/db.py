@@ -236,6 +236,40 @@ CREATE INDEX IF NOT EXISTS idx_daysmart_customer_email ON daysmart_customers(nor
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_name ON daysmart_customers(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_daysmart_memberships_bill_customer ON daysmart_memberships(bill_customer_id);
 CREATE INDEX IF NOT EXISTS idx_daysmart_class_registrations_customer ON daysmart_class_registrations(customer_id);
+
+CREATE TABLE IF NOT EXISTS adult_trial_email_notifications (
+    notification_key TEXT PRIMARY KEY,
+    class_start_at TEXT NOT NULL,
+    class_label TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS adult_trial_schedule_events (
+    event_id INTEGER PRIMARY KEY,
+    starts_at TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    raw_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS youth_trial_email_notifications (
+    notification_key TEXT PRIMARY KEY,
+    class_day TEXT NOT NULL,
+    class_label TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS youth_trial_schedule_events (
+    event_id INTEGER PRIMARY KEY,
+    starts_at TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    raw_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 POSTGRES_SCHEMA_SQL = """
@@ -442,6 +476,40 @@ CREATE INDEX IF NOT EXISTS idx_daysmart_customer_email ON daysmart_customers(nor
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_name ON daysmart_customers(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_daysmart_memberships_bill_customer ON daysmart_memberships(bill_customer_id);
 CREATE INDEX IF NOT EXISTS idx_daysmart_class_registrations_customer ON daysmart_class_registrations(customer_id);
+
+CREATE TABLE IF NOT EXISTS adult_trial_email_notifications (
+    notification_key TEXT PRIMARY KEY,
+    class_start_at TEXT NOT NULL,
+    class_label TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS adult_trial_schedule_events (
+    event_id BIGINT PRIMARY KEY,
+    starts_at TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    raw_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS youth_trial_email_notifications (
+    notification_key TEXT PRIMARY KEY,
+    class_day TEXT NOT NULL,
+    class_label TEXT NOT NULL,
+    recipient_email TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    sent_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS youth_trial_schedule_events (
+    event_id BIGINT PRIMARY KEY,
+    starts_at TEXT NOT NULL,
+    team_name TEXT NOT NULL,
+    raw_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
