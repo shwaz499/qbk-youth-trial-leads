@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: qbk-youth-kpi-dashboard
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: youth_kpi.db
+      - key: SALESMESSAGE_API_TOKEN
+        sync: false
+      - key: SALESMESSAGE_BASE_URL
+        value: https://api.salesmessage.com/pub/v2.2
+      - key: YOUTH_INBOX_ID
+        value: "207883"
+      - key: DASH_API_CLIENT_ID
+        sync: false
+      - key: DASH_API_SECRET
+        sync: false
+      - key: DASH_API_BASE_URL
+        value: https://api.dashplatform.com
+      - key: DAYSMART_COMPANY
+        value: qbksports
+      - key: APP_PASSWORD
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
