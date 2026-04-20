@@ -7,7 +7,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        value: salesmessage_agent.db
+        value: /tmp/salesmessage_agent.db
       - key: SALESMESSAGE_API_TOKEN
         sync: false
       - key: SALESMESSAGE_BASE_URL
