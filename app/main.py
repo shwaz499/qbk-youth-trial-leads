@@ -23,6 +23,7 @@ from .daysmart import DaysmartApiError, DaysmartClient
 from .ingest import sync_conversations
 from .salesmessage import SalesmessageApiError, SalesmessageClient
 from .unified import recompute_risk_alerts, sync_daysmart_to_unified, sync_salesmessage_to_unified
+from .youth_kpis import build_youth_kpi_dashboard, build_youth_kpi_email_preview
 
 app = FastAPI(title="Salesmessage AI Agent", version="0.1.0")
 settings = get_settings()
@@ -217,7 +218,7 @@ def _customer_birthdate(customer_row: dict[str, Any]) -> dt.date | None:
         return None
 
 
-def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     metadata = _json_loads(lead_row.get("metadata_json"), {})
     contact = metadata.get("contact") if isinstance(metadata, dict) else {}
     if not isinstance(contact, dict):
@@ -249,6 +250,7 @@ def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[st
         ).fetchall()
         phone_matches = [dict(row) for row in rows]
 
+    cutoff = dt.date.today().replace(year=dt.date.today().year - 21)
     parent: dict[str, Any] | None = None
     if phone_matches:
         if name:
@@ -261,6 +263,15 @@ def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[st
                 if row["normalized_email"] == email:
                     parent = row
                     break
+        if parent is None:
+            adult_candidates: list[tuple[dt.date, dict[str, Any]]] = []
+            for row in phone_matches:
+                birthdate = _customer_birthdate(row)
+                if birthdate is not None and birthdate < cutoff:
+                    adult_candidates.append((birthdate, row))
+            if adult_candidates:
+                adult_candidates.sort(key=lambda item: item[0])
+                parent = adult_candidates[0][1]
         if parent is None:
             parent = phone_matches[0]
 
@@ -278,25 +289,10 @@ def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[st
         if row is not None:
             parent = dict(row)
 
-    if parent is None and name:
-        rows = conn.execute(
-            """
-            SELECT *
-            FROM daysmart_customers
-            WHERE normalized_name = ?
-            ORDER BY updated_at DESC
-            LIMIT 2
-            """,
-            (name,),
-        ).fetchall()
-        if len(rows) == 1:
-            parent = dict(rows[0])
-
-    child: dict[str, Any] | None = None
+    children: list[dict[str, Any]] = []
     if phone_matches:
         parent_id = parent["customer_id"] if parent is not None else None
         non_parent = [row for row in phone_matches if row["customer_id"] != parent_id]
-        cutoff = dt.date.today().replace(year=dt.date.today().year - 21)
         age_candidates: list[tuple[dt.date, dict[str, Any]]] = []
         for row in non_parent:
             birthdate = _customer_birthdate(row)
@@ -304,11 +300,11 @@ def _find_daysmart_matches(conn: Any, lead_row: dict[str, Any]) -> tuple[dict[st
                 age_candidates.append((birthdate, row))
         if age_candidates:
             age_candidates.sort(key=lambda item: item[0], reverse=True)
-            child = age_candidates[0][1]
+            children = [row for _, row in age_candidates]
         elif len(non_parent) == 1:
-            child = non_parent[0]
+            children = [non_parent[0]]
 
-    return parent, child
+    return parent, children
 
 
 def _related_daysmart_customer_ids(parent: dict[str, Any] | None, child: dict[str, Any] | None) -> list[int]:
@@ -394,6 +390,18 @@ def _daysmart_event_summary(event_id: int) -> tuple[str | None, str | None]:
     return name, attrs.get("start")
 
 
+def _daysmart_event_registration_exists(registration_id: int) -> bool:
+    client = _daysmart_client()
+    try:
+        payload = client._get(f"/api/v1/event-registrations/{registration_id}")
+    except Exception as exc:
+        if "failed with 404" in str(exc):
+            return False
+        raise
+    data = payload.get("data") if isinstance(payload, dict) else None
+    return isinstance(data, dict)
+
+
 def _daysmart_first_class(conn: Any, customer_ids: list[int]) -> tuple[str | None, str | None]:
     if not customer_ids:
         return None, None
@@ -410,6 +418,22 @@ def _daysmart_first_class(conn: Any, customer_ids: list[int]) -> tuple[str | Non
     ).fetchall()
     for row in rows:
         row_dict = dict(row)
+        registration_id = int(row_dict["registration_id"])
+        try:
+            if not _daysmart_event_registration_exists(registration_id):
+                conn.execute(
+                    """
+                    DELETE FROM daysmart_class_registrations
+                    WHERE source_type = 'event_registration'
+                      AND registration_id = ?
+                    """,
+                    (registration_id,),
+                )
+                continue
+        except Exception:
+            # If DaySmart lookup fails transiently, keep the cached row rather than
+            # blanking the class from a temporary API issue.
+            pass
         name = row_dict.get("event_name")
         start_at = row_dict.get("event_start") or row_dict.get("created_at")
         event_id = row_dict.get("team_or_event_id")
@@ -548,6 +572,70 @@ def _daysmart_memberships(conn: Any, customer_ids: list[int]) -> list[str]:
     return items
 
 
+def _live_customer_memberships(customer_id: int) -> list[str]:
+    client = _daysmart_client()
+    payload = client._get(f"/api/v1/customers/{customer_id}?include=memberships")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    relationships = data.get("relationships") if isinstance(data, dict) and isinstance(data.get("relationships"), dict) else {}
+    memberships_rel = relationships.get("memberships") if isinstance(relationships, dict) else {}
+    membership_data = memberships_rel.get("data") if isinstance(memberships_rel, dict) else []
+    if not isinstance(membership_data, list):
+        membership_data = []
+
+    included = payload.get("included") if isinstance(payload, dict) else []
+    included_map: dict[int, dict[str, Any]] = {}
+    if isinstance(included, list):
+        for item in included:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "memberships":
+                continue
+            try:
+                membership_id = int(item.get("id"))
+            except Exception:
+                continue
+            included_map[membership_id] = item
+
+    membership_labels: list[str] = []
+    seen: set[str] = set()
+    for rel in membership_data:
+        if not isinstance(rel, dict):
+            continue
+        try:
+            membership_id = int(rel.get("id"))
+        except Exception:
+            continue
+        membership_payload = included_map.get(membership_id)
+        if membership_payload is None:
+            try:
+                membership_payload = client.get_membership(membership_id)
+            except Exception:
+                membership_payload = None
+        if membership_payload is not None:
+            attrs = membership_payload.get("attributes") if isinstance(membership_payload.get("attributes"), dict) else {}
+            product_name = None
+            included_items = membership_payload.get("_included") if isinstance(membership_payload, dict) else []
+            if isinstance(included_items, list):
+                for inc in included_items:
+                    if not isinstance(inc, dict):
+                        continue
+                    if inc.get("type") == "products":
+                        inc_attrs = inc.get("attributes") if isinstance(inc.get("attributes"), dict) else {}
+                        product_name = inc_attrs.get("name") or inc_attrs.get("desc")
+                        if product_name:
+                            break
+            if product_name is None:
+                product_name = attrs.get("product_name")
+            base = (product_name or "").strip() or "Unnamed membership"
+            expires = (attrs.get("expires") or attrs.get("term_date") or "").strip()
+            label = f"{base} ({expires[:10]})" if expires else base
+            if label not in seen:
+                seen.add(label)
+                membership_labels.append(label)
+
+    return membership_labels
+
+
 def _run_hosted_sync(req: HostedSyncRequest) -> None:
     _set_sync_state(
         running=True,
@@ -601,6 +689,11 @@ def health() -> dict[str, str]:
 @app.get("/")
 def ui() -> FileResponse:
     return FileResponse(static_dir / "index.html")
+
+
+@app.get("/youth-kpis")
+def youth_kpis_ui() -> FileResponse:
+    return FileResponse(static_dir / "youth-kpis.html")
 
 
 @app.get("/api/auth/status")
@@ -852,8 +945,7 @@ def dashboard_trial_leads(limit: int = 1000) -> dict[str, Any]:
             item["conversation_id"] = int(item["source_ref"])
             item["conversation_url"] = f"https://app.salesmessage.com/conversations/{item['source_ref']}"
             item["trial_class_when_display"] = _normalize_trial_class_when(item.get("trial_class_when"))
-            parent_customer, child_customer = _find_daysmart_matches(conn, item)
-            memberships: list[str] = []
+            parent_customer, child_customers = _find_daysmart_matches(conn, item)
 
             if parent_customer is None:
                 continue
@@ -865,31 +957,66 @@ def dashboard_trial_leads(limit: int = 1000) -> dict[str, Any]:
                 item["parent_daysmart_customer_id"] = None
                 item["parent_daysmart_url"] = None
 
-            if child_customer is not None:
-                item["child_name"] = child_customer.get("full_name")
-                item["child_daysmart_customer_id"] = child_customer["customer_id"]
-                item["child_daysmart_url"] = _daysmart_account_url(int(child_customer["customer_id"]))
-            else:
-                item["child_name"] = None
-                item["child_daysmart_customer_id"] = None
-                item["child_daysmart_url"] = None
+            row_children: list[dict[str, Any] | None] = child_customers or [None]
+            for child_customer in row_children:
+                row_item = dict(item)
+                memberships: list[str] = []
 
-            related_customer_ids = _related_daysmart_customer_ids(parent_customer, child_customer)
-            if related_customer_ids:
-                memberships = _daysmart_memberships(conn, related_customer_ids)
-            first_class_name, first_class_date = _daysmart_first_class(conn, related_customer_ids)
-            item["free_trial_class_name"] = first_class_name
-            item["free_trial_class_date"] = first_class_date
-            if first_class_name and first_class_date:
-                item["free_trial_class_display"] = f"{first_class_name} - {first_class_date}"
-            else:
-                item["free_trial_class_display"] = first_class_name or first_class_date or ""
+                if child_customer is not None:
+                    row_item["lead_key"] = f"{item['lead_key']}:child:{child_customer['customer_id']}"
+                    row_item["child_name"] = child_customer.get("full_name")
+                    row_item["child_daysmart_customer_id"] = child_customer["customer_id"]
+                    row_item["child_daysmart_url"] = _daysmart_account_url(int(child_customer["customer_id"]))
+                else:
+                    row_item["child_name"] = None
+                    row_item["child_daysmart_customer_id"] = None
+                    row_item["child_daysmart_url"] = None
 
-            item["memberships"] = memberships
-            item["has_membership"] = bool(memberships)
-            item["memberships_display"] = ", ".join(memberships) if memberships else "--"
-            items.append(item)
+                related_customer_ids = _related_daysmart_customer_ids(parent_customer, child_customer)
+                membership_customer_ids = (
+                    [int(child_customer["customer_id"])]
+                    if child_customer is not None
+                    else related_customer_ids
+                )
+                if child_customer is not None:
+                    try:
+                        memberships = _live_customer_memberships(int(child_customer["customer_id"]))
+                    except Exception:
+                        memberships = []
+                if not memberships and membership_customer_ids:
+                    memberships = _daysmart_memberships(conn, membership_customer_ids)
+                first_class_name, first_class_date = _daysmart_first_class(conn, related_customer_ids)
+                row_item["free_trial_class_name"] = first_class_name
+                row_item["free_trial_class_date"] = first_class_date
+                if first_class_name and first_class_date:
+                    row_item["free_trial_class_display"] = f"{first_class_name} - {first_class_date}"
+                else:
+                    row_item["free_trial_class_display"] = first_class_name or first_class_date or ""
+
+                row_item["memberships"] = memberships
+                row_item["has_membership"] = bool(memberships)
+                row_item["memberships_display"] = ", ".join(memberships) if memberships else "--"
+                items.append(row_item)
     return {"items": items}
+
+
+@app.get("/dashboard/youth-kpis")
+def dashboard_youth_kpis(days: int = 7) -> dict[str, Any]:
+    return build_youth_kpi_dashboard(
+        settings.database_url,
+        youth_inbox_id=settings.youth_inbox_id,
+        days=days,
+    )
+
+
+@app.get("/dashboard/youth-kpis/email-preview")
+def dashboard_youth_kpi_email_preview(days: int = 7) -> dict[str, Any]:
+    preview = build_youth_kpi_email_preview(
+        settings.database_url,
+        youth_inbox_id=settings.youth_inbox_id,
+        days=days,
+    )
+    return {"ok": True, **preview}
 
 
 @app.patch("/dashboard/trial-leads/{lead_key}")

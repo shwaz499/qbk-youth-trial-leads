@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QBK Youth Lead Funnel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f2efe6;
+      --ink: #13242f;
+      --muted: #5f7481;
+      --panel: rgba(255, 251, 244, 0.94);
+      --line: rgba(19, 36, 47, 0.12);
+      --shadow: 0 18px 48px rgba(19, 36, 47, 0.08);
+      --green: #0c7a69;
+      --navy: #173d63;
+      --gold: #dfb64b;
+      --warm: #fff4dc;
+      --danger: #b44949;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      background:
+        radial-gradient(circle at 0% 0%, rgba(223, 182, 75, 0.18), transparent 28%),
+        radial-gradient(circle at 100% 0%, rgba(23, 61, 99, 0.10), transparent 30%),
+        linear-gradient(180deg, #faf8f1 0%, #ece6d7 100%);
+    }
+
+    a {
+      color: var(--navy);
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    .auth-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(19, 36, 47, 0.28);
+      backdrop-filter: blur(10px);
+    }
+
+    .auth-gate.hidden { display: none; }
+
+    .auth-card {
+      width: min(420px, 100%);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 22px;
+      padding: 28px;
+      background: var(--panel);
+      box-shadow: 0 22px 54px rgba(19, 36, 47, 0.16);
+    }
+
+    .auth-form {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .auth-form label {
+      display: grid;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .auth-form input,
+    .btn,
+    select {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 11px 12px;
+      font: inherit;
+    }
+
+    .shell {
+      max-width: 1340px;
+      margin: 0 auto;
+      padding: 22px 16px 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.6fr 1fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+    }
+
+    .hero-card,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-main {
+      padding: 22px 24px 24px;
+      background:
+        linear-gradient(120deg, rgba(255, 244, 220, 0.86), rgba(255,255,255,0.88)),
+        var(--panel);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      color: var(--navy);
+      background: rgba(23, 61, 99, 0.08);
+    }
+
+    .title {
+      margin: 14px 0 0;
+      font-family: "Bebas Neue", sans-serif;
+      letter-spacing: 0.03em;
+      line-height: 0.95;
+      font-size: clamp(52px, 10vw, 86px);
+    }
+
+    .lede {
+      margin: 10px 0 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .hero-side {
+      display: grid;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .hero-stat {
+      padding: 18px 20px;
+      background: rgba(255,255,255,0.74);
+    }
+
+    .hero-stat strong {
+      display: block;
+      font-size: 34px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .hero-stat span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .mono {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .btn {
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform 120ms ease, opacity 120ms ease;
+      background: white;
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.6; cursor: wait; }
+    .btn-primary {
+      color: white;
+      background: linear-gradient(180deg, #0f8e79, #0c7a69);
+      border-color: transparent;
+    }
+    .btn-secondary {
+      color: var(--navy);
+      background: rgba(23, 61, 99, 0.08);
+    }
+
+    .status-line {
+      min-height: 28px;
+      padding: 10px 16px 0;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .metric-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255,255,255,0.72);
+      box-shadow: var(--shadow);
+    }
+
+    .metric-card .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+
+    .metric-card .value {
+      margin-top: 10px;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .metric-card .subtext {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .two-up {
+      display: grid;
+      grid-template-columns: 0.95fr 1.05fr;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .panel-body {
+      padding: 16px 18px 18px;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .status-chip {
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(23, 61, 99, 0.06);
+      border: 1px solid rgba(23, 61, 99, 0.08);
+    }
+
+    .status-chip strong {
+      display: block;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .status-chip span {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: 58vh;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e5e1d6;
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #fcfbf6;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stage-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(23, 61, 99, 0.08);
+      color: var(--navy);
+    }
+
+    .stage-pill.warn {
+      background: rgba(223, 182, 75, 0.16);
+      color: #7a5c0a;
+    }
+
+    .stage-pill.danger {
+      background: rgba(180, 73, 73, 0.12);
+      color: var(--danger);
+    }
+
+    .stage-pill.good {
+      background: rgba(12, 122, 105, 0.12);
+      color: var(--green);
+    }
+
+    .empty {
+      padding: 28px 18px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 1160px) {
+      .hero,
+      .two-up {
+        grid-template-columns: 1fr;
+      }
+      .metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .metrics,
+      .status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .metrics,
+      .status-grid {
+        grid-template-columns: 1fr;
+      }
+      th, td {
+        padding: 10px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card">
+      <h2>Protected Access</h2>
+      <p>Enter the shared password to open the Youth KPI dashboard.</p>
+      <form class="auth-form" id="authForm">
+        <label>
+          <span>Password</span>
+          <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        </label>
+        <button class="btn btn-primary" id="authSubmitButton" type="submit">Unlock</button>
+      </form>
+      <div class="status-line" id="authMessage">Enter the shared password to continue.</div>
+    </div>
+  </div>
+
+  <main class="shell">
+    <section class="hero">
+      <article class="hero-card hero-main">
+        <div class="eyebrow">QBK Operations / Youth Funnel</div>
+        <h1 class="title">Youth Lead Funnel</h1>
+        <p class="lede">This view tracks recent Youth inbox leads, whether they made a DaySmart account, whether a free trial was scheduled, whether they actually checked in, and whether a membership followed.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary" id="btnRefreshAll" type="button">Refresh</button>
+          <button class="btn btn-secondary" id="btnLogout" type="button">Log Out</button>
+        </div>
+      </article>
+      <aside class="hero-card hero-side" id="heroSide">
+        <div class="hero-stat">
+          <strong id="windowLabel">Last 7 Days</strong>
+          <span id="lastRefreshed">Last refresh: --</span>
+        </div>
+        <div class="hero-stat">
+          <strong id="headlineLeadCount">0</strong>
+          <span>Youth inbox leads in the current cohort</span>
+        </div>
+        <div class="hero-stat">
+          <strong id="headlineAttendance">0</strong>
+          <span>Checked in from actual roster check-in data</span>
+        </div>
+      </aside>
+    </section>
+
+    <section class="toolbar panel">
+      <div class="toolbar-left">
+        <label for="daysSelect" class="mono">Window</label>
+        <select id="daysSelect" style="width:auto;">
+          <option value="7" selected>Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+      </div>
+      <div class="toolbar-right mono">
+        <span id="statusLine">Ready.</span>
+      </div>
+    </section>
+
+    <section class="metrics" id="metrics"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Conversation Status</h2>
+        <span class="mono" id="statusSummary">--</span>
+      </div>
+      <div class="panel-body">
+        <div class="status-grid" id="statusGrid"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Lead Detail</h2>
+        <span class="mono" id="detailCount">0 rows</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Parent</th>
+              <th>Child</th>
+              <th>Lead Started</th>
+              <th>Status</th>
+              <th>Class</th>
+              <th>Checked In</th>
+              <th>Membership</th>
+              <th>Conversation</th>
+            </tr>
+          </thead>
+          <tbody id="detailBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const q = (id) => document.getElementById(id);
+    const authGate = q("authGate");
+    const authForm = q("authForm");
+    const authPassword = q("authPassword");
+    const authSubmitButton = q("authSubmitButton");
+    const authMessage = q("authMessage");
+    const statusLine = q("statusLine");
+    const metrics = q("metrics");
+    const statusGrid = q("statusGrid");
+    const detailBody = q("detailBody");
+    const detailCount = q("detailCount");
+    const daysSelect = q("daysSelect");
+
+    function timestamp() {
+      return new Date().toLocaleString();
+    }
+
+    function setStatus(text, isError = false) {
+      statusLine.textContent = text;
+      statusLine.style.color = isError ? "#b44949" : "#5f7481";
+    }
+
+    function setAuthMessage(text, isError = false) {
+      authMessage.textContent = text;
+      authMessage.style.color = isError ? "#b44949" : "#5f7481";
+    }
+
+    function showAuthGate(text = "Enter the shared password to continue.") {
+      authGate.classList.remove("hidden");
+      setAuthMessage(text);
+    }
+
+    function hideAuthGate() {
+      authGate.classList.add("hidden");
+    }
+
+    async function getJson(url) {
+      const res = await fetch(url);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (res.status === 401) {
+        showAuthGate("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      return data;
+    }
+
+    async function sendJson(url, method, payload) {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (res.status === 401) {
+        showAuthGate("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      return data;
+    }
+
+    async function login(password) {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      hideAuthGate();
+      await refreshDashboard();
+      setStatus("Youth KPI page ready.");
+    }
+
+    async function logout() {
+      await sendJson("/api/logout", "POST", {});
+      showAuthGate("Signed out.");
+      setStatus("Enter password to continue.");
+    }
+
+    function stageClass(label) {
+      if (["Membership purchased", "Attended", "Confirmed"].includes(label)) return "stage-pill good";
+      if (["No-show", "Lost"].includes(label)) return "stage-pill danger";
+      if (["Needs follow-up", "Scheduled", "Account created"].includes(label)) return "stage-pill warn";
+      return "stage-pill";
+    }
+
+    function renderMetrics(cards) {
+      metrics.innerHTML = "";
+      for (const card of cards || []) {
+        metrics.insertAdjacentHTML("beforeend", `
+          <article class="metric-card">
+            <div class="label">${card.label}</div>
+            <div class="value">${card.count ?? 0}</div>
+            <div class="subtext">${card.subtext || ""}</div>
+          </article>
+        `);
+      }
+    }
+
+    function renderStatuses(items) {
+      statusGrid.innerHTML = "";
+      const total = (items || []).reduce((sum, item) => sum + (item.count || 0), 0);
+      q("statusSummary").textContent = `${total} total`;
+      for (const item of items || []) {
+        statusGrid.insertAdjacentHTML("beforeend", `
+          <div class="status-chip">
+            <strong>${item.count ?? 0}</strong>
+            <span>${item.label}</span>
+          </div>
+        `);
+      }
+    }
+
+    function renderDetail(items) {
+      detailCount.textContent = `${items.length} row${items.length === 1 ? "" : "s"}`;
+      detailBody.innerHTML = "";
+      if (!items.length) {
+        detailBody.innerHTML = `<tr><td colspan="8" class="empty">No youth leads in this date window yet.</td></tr>`;
+        return;
+      }
+
+      for (const item of items) {
+        const checkedIn = item.has_attended ? (item.attended_at_display || "Yes") : "--";
+        const classText = item.free_trial_class_display || "--";
+        const childCell = item.child_daysmart_url
+          ? `<a href="${item.child_daysmart_url}" target="_blank" rel="noreferrer">${item.child_name || "--"}</a>`
+          : (item.child_name || "--");
+        const parentCell = item.parent_daysmart_url
+          ? `<a href="${item.parent_daysmart_url}" target="_blank" rel="noreferrer">${item.parent_name || "--"}</a>`
+          : (item.parent_name || "--");
+        detailBody.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td>${parentCell}<div class="mono">${item.parent_phone || "--"}</div></td>
+            <td>${childCell}</td>
+            <td>${item.lead_started_at_display || "--"}</td>
+            <td><span class="${stageClass(item.lead_status)}">${item.lead_status}</span></td>
+            <td>${classText}</td>
+            <td>${checkedIn}</td>
+            <td>${item.memberships_display || "--"}</td>
+            <td><a href="${item.conversation_url}" target="_blank" rel="noreferrer">Open</a></td>
+          </tr>
+        `);
+      }
+    }
+
+    async function refreshDashboard() {
+      const days = Number(daysSelect.value || "7");
+      const data = await getJson(`/dashboard/youth-kpis?days=${days}`);
+      renderMetrics(data.summary_cards || []);
+      renderStatuses(data.conversation_statuses || []);
+      renderDetail(data.items || []);
+
+      q("windowLabel").textContent = `Last ${data.window?.days || days} Days`;
+      q("lastRefreshed").textContent = `Last refresh: ${timestamp()}`;
+      q("headlineLeadCount").textContent = String(data.summary?.lead_conversations ?? 0);
+      q("headlineAttendance").textContent = String(data.summary?.attended_trials ?? 0);
+
+    }
+
+    async function withButton(button, fn) {
+      button.disabled = true;
+      try {
+        await fn();
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function pollSyncUntilDone() {
+      while (true) {
+        const data = await getJson("/sync/status");
+        const stage = data.stage || "idle";
+        if (data.running) {
+          setStatus(`Sync in progress: ${stage.replaceAll("_", " ")}...`);
+          await wait(3000);
+          continue;
+        }
+        if (stage === "failed") throw new Error(data.last_error || "Sync failed.");
+        if (stage === "completed") {
+          setStatus("Sync complete.");
+          return;
+        }
+        await wait(1000);
+      }
+    }
+
+    q("btnRefreshAll").addEventListener("click", () => withButton(q("btnRefreshAll"), async () => {
+      setStatus("Refreshing data...");
+      await sendJson("/sync/start", "POST", {
+        daysmart_max_pages: 6,
+        daysmart_page_size: 100,
+      });
+      await pollSyncUntilDone();
+      await refreshDashboard();
+      setStatus("Youth KPI page ready.");
+    }));
+
+    q("btnLogout").addEventListener("click", () => withButton(q("btnLogout"), logout));
+
+    daysSelect.addEventListener("change", () => {
+      refreshDashboard()
+        .then(() => setStatus("Window updated."))
+        .catch((error) => setStatus(`Refresh failed: ${error.message}`, true));
+    });
+
+    authForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      authSubmitButton.disabled = true;
+      try {
+        await login(authPassword.value);
+        authPassword.value = "";
+      } catch (error) {
+        setAuthMessage(error.message || String(error), true);
+      } finally {
+        authSubmitButton.disabled = false;
+      }
+    });
+
+    getJson("/api/auth/status")
+      .then((data) => {
+        if (data.authenticated) {
+          hideAuthGate();
+          return refreshDashboard().then(() => setStatus("Youth KPI page ready."));
+        }
+        showAuthGate();
+        setStatus("Enter password to continue.");
+      })
+      .catch((error) => {
+        showAuthGate();
+        setStatus(`Load failed: ${error.message}`, true);
+      });
+  </script>
+</body>
+</html>

@@ -60,6 +60,10 @@ class DaysmartClient:
             )
         return response.json()
 
+    def _get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
+        # Historical app code expects a private _get helper for one-off lookups.
+        return self._request(endpoint, params=params)
+
     def list_customers(self, page_number: int = 1, page_size: int = 200) -> tuple[list[dict[str, Any]], int]:
         payload = self._request(
             "/api/v1/customers",
