@@ -4,12 +4,13 @@ import datetime as dt
 import json
 import os
 import re
-import subprocess
 import unicodedata
 from collections import Counter
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
+
+import requests
 
 from .config import get_settings
 from .db import get_conn
@@ -18,6 +19,12 @@ from .daysmart import DaysmartApiError, DaysmartClient
 LOCAL_TZ = ZoneInfo("America/New_York")
 YOUTH_CLASS_TOKENS = ("seals", "cubs", "beach lions")
 CHECKIN_MATCH_WINDOW_HOURS = 6
+ADMIN_LOGIN_URL = "https://apps.daysmartrecreation.com/dash/admin/index.php?Action=Auth/login"
+ADMIN_LOGIN_VALIDATE_URL = "https://apps.daysmartrecreation.com/dash/admin/index.php?Action=Auth/validateLogin.json&extension=json"
+ADMIN_LOCATION_CHECKIN_REPORT_URL = "https://apps.daysmartrecreation.com/dash/admin/index.php?Action=Report/locationCheckIn&company={company}"
+REPORT_TABLE_RE = re.compile(r'<table[^>]+id="results-table"[^>]*>.*?<tbody>(?P<tbody>.*?)</tbody>', re.S | re.I)
+REPORT_ROW_RE = re.compile(r"<tr[^>]*>(?P<row>.*?)</tr>", re.S | re.I)
+REPORT_CELL_RE = re.compile(r"<td[^>]*>(?P<cell>.*?)</td>", re.S | re.I)
 
 
 def _json_loads(value: str | None, fallback: Any) -> Any:
@@ -115,27 +122,10 @@ def _daysmart_client() -> DaysmartClient:
     )
 
 
-def _roster_checkin_root() -> Path:
-    return Path(__file__).resolve().parents[2] / "qbk-roster-checkin"
-
-
-def _load_simple_env(path: Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    if not path.exists():
-        return env
-    try:
-        for raw_line in path.read_text().splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip("'").strip('"')
-            if key:
-                env[key] = value
-    except Exception:
-        return {}
-    return env
+def _strip_html(text: str | None) -> str:
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()
 
 
 def _daysmart_account_url(customer_id: int | None) -> str | None:
@@ -489,60 +479,86 @@ def _load_location_report_checkins(
     if not days:
         return {}, {"source": "daysmart-location-checkins", "entries": 0, "days": 0}
 
-    root = _roster_checkin_root()
-    python_bin = root / ".venv" / "bin" / "python"
-    if not python_bin.exists():
-        return {}, {"source": "daysmart-location-checkins-missing", "entries": 0, "days": 0}
-
-    env = os.environ.copy()
-    env.setdefault("PLAYWRIGHT_BROWSERS_PATH", "0")
-    env.update(_load_simple_env(root / ".env"))
+    company = os.getenv("DAYSMART_COMPANY", "qbksports").strip() or "qbksports"
+    username = os.getenv("DAYSMART_USERNAME", "").strip()
+    password = os.getenv("DAYSMART_PASSWORD", "").strip()
+    if not username or not password:
+        return {}, {"source": "daysmart-location-checkins-missing-creds", "entries": 0, "days": 0}
 
     lookup: dict[tuple[str, str], list[str]] = {}
     day_count = 0
     error_count = 0
     last_error = None
 
-    script = """
-import json
-import sys
-from server import client
-
-selected_date = sys.argv[1]
-lookup = client.get_admin_location_checkins_for_date(selected_date, force_refresh=True)
-print(json.dumps({
-    "ok": True,
-    "results": {customer_id: [value.isoformat() for value in values] for customer_id, values in lookup.items()},
-}))
-""".strip()
-
     for event_day in sorted(days):
         day_count += 1
         try:
-            completed = subprocess.run(
-                [str(python_bin), "-c", script, event_day],
-                cwd=str(root),
-                capture_output=True,
-                text=True,
-                timeout=60,
-                env=env,
-            )
-            stdout = completed.stdout.strip()
-            stderr = completed.stderr.strip()
-            if completed.returncode != 0:
-                error_count += 1
-                last_error = (stderr or stdout or "Location check-in refresh failed.")[:240]
+            selected_dt = dt.date.fromisoformat(event_day)
+            selected_display = selected_dt.strftime("%m/%d/%Y")
+            payload = {
+                "_method": "POST",
+                "facility_ids[]": ["1"],
+                "membership_ids[]": ["0"],
+                "custom_field_id": "0",
+                "start_date": selected_display,
+                "end_date": selected_display,
+                "do_search": "1",
+            }
+            with requests.Session() as session:
+                session.headers.update({"User-Agent": "QBKYouthKPI/1.0"})
+                session.get(ADMIN_LOGIN_URL, timeout=30)
+                login_response = session.post(
+                    ADMIN_LOGIN_VALIDATE_URL,
+                    data={
+                        "_method": "POST",
+                        "company_code": company,
+                        "username": username,
+                        "password": password,
+                    },
+                    headers={
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Referer": ADMIN_LOGIN_URL,
+                    },
+                    timeout=30,
+                )
+                login_response.raise_for_status()
+                login_payload = login_response.json()
+                if login_payload.get("success") != "Login Successful":
+                    raise RuntimeError("DaySmart admin login failed for check-in refresh.")
+
+                report_response = session.post(
+                    ADMIN_LOCATION_CHECKIN_REPORT_URL.format(company=company),
+                    data=payload,
+                    timeout=30,
+                )
+                report_response.raise_for_status()
+                html_text = report_response.text
+
+            table_match = REPORT_TABLE_RE.search(html_text)
+            if not table_match:
+                raise RuntimeError("Location check-in report did not include results table.")
+
+            tbody = table_match.group("tbody")
+            day_hits = 0
+            for row_match in REPORT_ROW_RE.finditer(tbody):
+                cells = [cell_match.group("cell") for cell_match in REPORT_CELL_RE.finditer(row_match.group("row"))]
+                if len(cells) < 5:
+                    continue
+                customer_id = _strip_html(cells[1])
+                visit_display = _strip_html(cells[4])
+                if not customer_id or not customer_id.isdigit():
+                    continue
+                try:
+                    visit_dt = dt.datetime.strptime(visit_display, "%m/%d/%Y %I:%M%p")
+                except ValueError:
+                    continue
+                lookup.setdefault((event_day, customer_id), []).append(visit_dt.isoformat())
+                day_hits += 1
+            if day_hits == 0:
                 continue
-            payload = json.loads(stdout)
-            raw_results = payload.get("results") if isinstance(payload, dict) else {}
-            if not payload.get("ok") or not isinstance(raw_results, dict):
-                error_count += 1
-                last_error = str((payload or {}).get("error") or "Location check-in refresh failed.")[:240]
-                continue
-            for customer_id, values in raw_results.items():
-                timestamps = [str(value) for value in values if isinstance(value, str) and value]
-                if timestamps:
-                    lookup[(event_day, str(customer_id))] = timestamps
+            for key, values in list(lookup.items()):
+                if key[0] == event_day:
+                    values.sort()
         except Exception as exc:
             error_count += 1
             last_error = str(exc)[:240]

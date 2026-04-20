@@ -706,8 +706,8 @@
     q("btnRefreshAll").addEventListener("click", () => withButton(q("btnRefreshAll"), async () => {
       setStatus("Refreshing data...");
       await sendJson("/sync/start", "POST", {
-        daysmart_max_pages: 6,
-        daysmart_page_size: 100,
+        daysmart_max_pages: 25,
+        daysmart_page_size: 200,
       });
       await pollSyncUntilDone();
       await refreshDashboard();

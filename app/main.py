@@ -59,8 +59,8 @@ class SyncRequest(BaseModel):
 
 
 class HostedSyncRequest(SyncRequest):
-    daysmart_max_pages: int = 6
-    daysmart_page_size: int = 100
+    daysmart_max_pages: int = 25
+    daysmart_page_size: int = 200
 
 
 class AskRequest(BaseModel):
@@ -76,8 +76,8 @@ class RiskRecomputeRequest(BaseModel):
 
 
 class DaySmartSyncRequest(BaseModel):
-    max_pages: int = 6
-    page_size: int = 100
+    max_pages: int = 25
+    page_size: int = 200
 
 
 class TrialLeadUpdateRequest(BaseModel):
