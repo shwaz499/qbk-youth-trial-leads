@@ -1,9 +1,3 @@
-databases:
-  - name: qbk-youth-trial-leads-db
-    plan: free
-    region: oregon
-    postgresMajorVersion: "16"
-
 services:
   - type: web
     name: qbk-youth-trial-leads
@@ -13,9 +7,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: qbk-youth-trial-leads-db
-          property: connectionString
+        value: salesmessage_agent.db
       - key: SALESMESSAGE_API_TOKEN
         sync: false
       - key: SALESMESSAGE_BASE_URL
