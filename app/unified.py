@@ -10,6 +10,8 @@ from typing import Any
 from .db import get_conn
 from .daysmart import DaysmartApiError, DaysmartClient
 
+DAYSMART_HISTORY_CUTOFF = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+
 
 def _utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
@@ -114,6 +116,56 @@ def _as_dt(value: str | None) -> dt.datetime | None:
 
 def _scope_key(family_key: str | None, child_key: str | None) -> str:
     return f"family:{family_key or ''}|child:{child_key or ''}"
+
+
+def _daysmart_row_ts(row: dict[str, Any], *field_names: str) -> dt.datetime | None:
+    attrs = row.get("attributes") if isinstance(row.get("attributes"), dict) else {}
+    for field_name in field_names:
+        parsed = _as_dt(attrs.get(field_name))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _page_latest_ts(
+    rows: list[dict[str, Any]],
+    *field_names: str,
+) -> dt.datetime | None:
+    latest: dt.datetime | None = None
+    for row in rows:
+        parsed = _daysmart_row_ts(row, *field_names)
+        if parsed is None:
+            continue
+        if latest is None or parsed > latest:
+            latest = parsed
+    return latest
+
+
+def _find_cutoff_start_page(
+    fetch_page: Any,
+    *,
+    last_page: int,
+    page_size: int,
+    cutoff: dt.datetime,
+    date_fields: tuple[str, ...],
+) -> int:
+    if last_page <= 1:
+        return 1
+
+    low = 1
+    high = last_page
+    result = last_page
+    while low <= high:
+        mid = (low + high) // 2
+        rows, _ = fetch_page(page_number=mid, page_size=page_size)
+        latest = _page_latest_ts(rows, *date_fields)
+        if latest is not None and latest >= cutoff:
+            result = mid
+            high = mid - 1
+        else:
+            low = mid + 1
+
+    return max(1, result - 1)
 
 
 def _upsert_family(
@@ -749,15 +801,14 @@ def sync_daysmart_to_unified(
     event_cache: dict[int, tuple[str | None, str | None]] = {}
     with get_conn(db_path) as conn:
         first_data, customer_last_page = client.list_customers(page_number=1, page_size=page_size)
-        if first_data:
-            start_page = max(1, customer_last_page - max_pages + 1)
-        else:
+        if not first_data:
             start_page = 1
             customer_last_page = 0
+        else:
+            # Fresh hosted databases need the full customer directory to match older parent accounts.
+            start_page = 1
         for page in range(start_page, customer_last_page + 1):
-            data = first_data if page == 1 and start_page == 1 else client.list_customers(
-                page_number=page, page_size=page_size
-            )[0]
+            data = first_data if page == 1 else client.list_customers(page_number=page, page_size=page_size)[0]
             if not data:
                 continue
             for row in data:
@@ -804,15 +855,13 @@ def sync_daysmart_to_unified(
                 children += 1
 
         first_data, membership_last_page = client.list_memberships(page_number=1, page_size=page_size)
-        if first_data:
-            start_page = max(1, membership_last_page - max_pages + 1)
-        else:
+        if not first_data:
             start_page = 1
             membership_last_page = 0
+        else:
+            start_page = 1
         for page in range(start_page, membership_last_page + 1):
-            data = first_data if page == 1 and start_page == 1 else client.list_memberships(
-                page_number=page, page_size=page_size
-            )[0]
+            data = first_data if page == 1 else client.list_memberships(page_number=page, page_size=page_size)[0]
             if not data:
                 continue
             for row in data:
@@ -882,11 +931,17 @@ def sync_daysmart_to_unified(
                 attendance += 1
 
         first_data, registration_last_page = client.list_registrations(page_number=1, page_size=page_size)
-        if first_data:
-            start_page = max(1, registration_last_page - max_pages + 1)
-        else:
+        if not first_data:
             start_page = 1
             registration_last_page = 0
+        else:
+            start_page = _find_cutoff_start_page(
+                client.list_registrations,
+                last_page=registration_last_page,
+                page_size=page_size,
+                cutoff=DAYSMART_HISTORY_CUTOFF,
+                date_fields=("created_at", "created", "updated_at"),
+            )
         for page in range(start_page, registration_last_page + 1):
             data = first_data if page == 1 and start_page == 1 else client.list_registrations(
                 page_number=page, page_size=page_size
@@ -906,11 +961,17 @@ def sync_daysmart_to_unified(
             page_number=1,
             page_size=page_size,
         )
-        if first_data:
-            start_page = max(1, event_registration_last_page - max_pages + 1)
-        else:
+        if not first_data:
             start_page = 1
             event_registration_last_page = 0
+        else:
+            start_page = _find_cutoff_start_page(
+                client.list_event_registrations,
+                last_page=event_registration_last_page,
+                page_size=page_size,
+                cutoff=DAYSMART_HISTORY_CUTOFF,
+                date_fields=("updated_at", "created_at", "date", "start"),
+            )
         for page in range(start_page, event_registration_last_page + 1):
             data = first_data if page == 1 and start_page == 1 else client.list_event_registrations(
                 page_number=page, page_size=page_size
