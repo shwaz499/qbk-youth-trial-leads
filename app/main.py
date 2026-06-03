@@ -59,7 +59,7 @@ settings = get_settings()
 static_dir = Path(__file__).parent / "static"
 snapshot_requested = os.getenv("YOUTH_KPI_SNAPSHOT_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
 snapshot_target = os.getenv("YOUTH_KPI_SNAPSHOT_TARGET", "").strip().lower()
-snapshot_mode = snapshot_requested and snapshot_target == "render"
+snapshot_mode = snapshot_requested and snapshot_target in {"", "render"}
 snapshot_dir = Path(os.getenv("YOUTH_KPI_SNAPSHOT_DIR", Path(__file__).parent / "snapshot")).resolve()
 if not snapshot_mode:
     init_db(settings.database_url)
