@@ -20,11 +20,18 @@ class SalesmessageClient:
     retry_backoff_seconds: float = 1.0
 
     def _request(self, method: str, path: str, params: dict[str, Any] | None = None) -> Any:
-        if not self.token:
+        token = self.token
+        try:
+            from .config import get_salesmessage_access_token
+
+            token = get_salesmessage_access_token(fallback_token=self.token)
+        except Exception:
+            token = self.token
+        if not token:
             raise SalesmessageApiError("SALESMESSAGE_API_TOKEN is missing")
         url = f"{self.base_url}{path}"
         headers = {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {token}",
             "Accept": "application/json",
         }
         retryable_statuses = {429, 500, 502, 503, 504}

@@ -11,6 +11,8 @@ from .db import get_conn
 from .daysmart import DaysmartApiError, DaysmartClient
 
 DAYSMART_HISTORY_CUTOFF = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+FTYC_DISCOUNT_ID = 77
+FTYC_REGISTRATION_MATCH_WINDOW_SECONDS = 10 * 60
 
 
 def _utc_now() -> str:
@@ -56,6 +58,15 @@ def _as_int(value: Any) -> int | None:
         return None
 
 
+def _as_decimal(value: Any) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _relationship_ids(value: Any) -> list[int]:
     if isinstance(value, dict):
         data = value.get("data")
@@ -90,6 +101,49 @@ def _clean_text(value: str | None) -> str:
     text = re.sub(r"<[^>]+>", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _first_outbound_salesmessage_body(conn: Any, conversation_id: int) -> str:
+    row = conn.execute(
+        """
+        SELECT body
+        FROM messages
+        WHERE conversation_id = ?
+          AND coalesce(user_id, 0) != 0
+        ORDER BY coalesce(created_at, sent_at, received_at, '') ASC, id ASC
+        LIMIT 1
+        """,
+        (conversation_id,),
+    ).fetchone()
+    if row is None:
+        return ""
+    return _clean_text(row["body"])
+
+
+def _is_legacy_youth_lead(conn: Any, conversation_id: int) -> bool:
+    body = _first_outbound_salesmessage_body(conn, conversation_id).lower()
+    if not body:
+        return False
+    youth_markers = (
+        "youth program",
+        "youth programs",
+        "youth class",
+        "youth classes",
+        "how old is your child",
+        "for your child",
+        "free volleyball class for your child",
+        "free class for your child",
+        "cubs",
+        "seals",
+    )
+    return any(marker in body for marker in youth_markers)
+
+
+def _is_excluded_program_text(value: str | None) -> bool:
+    cleaned = _clean_text(value).lower()
+    if not cleaned:
+        return False
+    return "beach lions" in cleaned
 
 
 def _as_dt(value: str | None) -> dt.datetime | None:
@@ -549,6 +603,141 @@ def _upsert_daysmart_class_registration(
     )
 
 
+def _is_youth_trial_class_name(value: str | None) -> bool:
+    cleaned = _clean_text(value).lower()
+    return ("seals" in cleaned or "cubs" in cleaned) and "beach lions" not in cleaned
+
+
+def _upsert_ftyc_trial_registration(
+    conn: Any,
+    *,
+    registration: dict[str, Any],
+    invoice_item: dict[str, Any],
+) -> None:
+    attrs = invoice_item.get("attributes") if isinstance(invoice_item.get("attributes"), dict) else {}
+    conn.execute(
+        """
+        INSERT INTO daysmart_ftyc_trial_registrations (
+            registration_id, customer_id, event_id, event_name, event_start,
+            registration_created_at, invoice_item_id, invoice_id, discount_id,
+            invoice_created_at, invoice_price, raw_json, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(registration_id) DO UPDATE SET
+            customer_id=excluded.customer_id,
+            event_id=excluded.event_id,
+            event_name=excluded.event_name,
+            event_start=excluded.event_start,
+            registration_created_at=excluded.registration_created_at,
+            invoice_item_id=excluded.invoice_item_id,
+            invoice_id=excluded.invoice_id,
+            discount_id=excluded.discount_id,
+            invoice_created_at=excluded.invoice_created_at,
+            invoice_price=excluded.invoice_price,
+            raw_json=excluded.raw_json,
+            updated_at=excluded.updated_at
+        """,
+        (
+            registration["registration_id"],
+            registration["customer_id"],
+            registration["team_or_event_id"],
+            registration["event_name"],
+            registration["event_start"],
+            registration["created_at"],
+            _as_int(invoice_item.get("id")),
+            _as_int(attrs.get("invoice_id")),
+            FTYC_DISCOUNT_ID,
+            attrs.get("created_at") or attrs.get("date"),
+            attrs.get("price"),
+            _json(invoice_item),
+            _utc_now(),
+        ),
+    )
+
+
+def _refresh_ftyc_trial_registration_cache(
+    conn: Any,
+    client: DaysmartClient,
+    *,
+    page_size: int,
+    max_pages: int | None = None,
+    delete_unmatched: bool = True,
+) -> int:
+    matched_registration_ids: set[int] = set()
+    first_page, last_page = client.list_invoice_items(
+        page_number=1,
+        page_size=page_size,
+        filters={"discount_id": FTYC_DISCOUNT_ID},
+        sort="-date",
+    )
+    start_page = 1
+    if max_pages is not None and max_pages > 0:
+        last_page = min(last_page, max_pages)
+        delete_unmatched = False
+    for page in range(start_page, last_page + 1):
+        rows = first_page if page == 1 else client.list_invoice_items(
+            page_number=page,
+            page_size=page_size,
+            filters={"discount_id": FTYC_DISCOUNT_ID},
+            sort="-date",
+        )[0]
+        for invoice_item in rows:
+            attrs = invoice_item.get("attributes") if isinstance(invoice_item.get("attributes"), dict) else {}
+            if _as_int(attrs.get("discount_id")) != FTYC_DISCOUNT_ID:
+                continue
+            if attrs.get("is_reversal") or attrs.get("reversal_item_id") or attrs.get("reversed_item_id"):
+                continue
+            price = _as_decimal(attrs.get("price"))
+            if price is None or price >= 0:
+                continue
+            customer_id = _as_int(attrs.get("customer_id"))
+            if customer_id is None:
+                continue
+            invoice_ts = _as_dt(attrs.get("created_at")) or _as_dt(attrs.get("date"))
+            if invoice_ts is None:
+                continue
+            candidates = conn.execute(
+                """
+                SELECT registration_id, customer_id, team_or_event_id, event_name, event_start, created_at
+                FROM daysmart_class_registrations
+                WHERE source_type = 'event_registration'
+                  AND customer_id = ?
+                """,
+                (customer_id,),
+            ).fetchall()
+            best: dict[str, Any] | None = None
+            best_event_ts: dt.datetime | None = None
+            for candidate_row in candidates:
+                candidate = dict(candidate_row)
+                if not _is_youth_trial_class_name(candidate.get("event_name")):
+                    continue
+                registration_ts = _as_dt(candidate.get("created_at"))
+                if registration_ts is None:
+                    continue
+                delta = abs((registration_ts - invoice_ts).total_seconds())
+                if delta > FTYC_REGISTRATION_MATCH_WINDOW_SECONDS:
+                    continue
+                event_ts = _as_dt(candidate.get("event_start")) or registration_ts
+                if best is None or event_ts > (best_event_ts or event_ts):
+                    best = candidate
+                    best_event_ts = event_ts
+            if best is None:
+                continue
+            registration_id = int(best["registration_id"])
+            matched_registration_ids.add(registration_id)
+            _upsert_ftyc_trial_registration(conn, registration=best, invoice_item=invoice_item)
+
+    if delete_unmatched and matched_registration_ids:
+        placeholders = ",".join("?" for _ in matched_registration_ids)
+        conn.execute(
+            f"""
+            DELETE FROM daysmart_ftyc_trial_registrations
+            WHERE registration_id NOT IN ({placeholders})
+            """,
+            tuple(sorted(matched_registration_ids)),
+        )
+    return len(matched_registration_ids)
+
+
 def _is_added_to_class(text: str) -> bool:
     lowered = text.lower()
     positive_patterns = [
@@ -606,7 +795,7 @@ def _extract_trial_class_choice(text: str) -> tuple[str | None, str | None]:
     if not cleaned:
         return None, None
 
-    class_match = re.search(r"\b(Cubs|Seals(?:\s+\d+\+)?|Beach Lions)\b", cleaned, re.IGNORECASE)
+    class_match = re.search(r"\b(Cubs|Seals(?:\s+\d+\+)?)\b", cleaned, re.IGNORECASE)
     class_name = class_match.group(1) if class_match else None
 
     when_patterns = [
@@ -633,25 +822,48 @@ def _extract_trial_class_choice(text: str) -> tuple[str | None, str | None]:
 def sync_salesmessage_to_unified(
     db_path: str,
     youth_inbox_id: int,
-    cutoff_date: str = "2026-03-01",
+    cutoff_date: str | None = None,
+    legacy_youth_inbox_id: int | None = None,
 ) -> dict[str, int]:
     families = 0
     leads = 0
     outreach = 0
     now = _utc_now()
+    source_inbox_ids = [youth_inbox_id]
+    if legacy_youth_inbox_id and legacy_youth_inbox_id not in source_inbox_ids:
+        source_inbox_ids.append(legacy_youth_inbox_id)
     with get_conn(db_path) as conn:
-        conversations = conn.execute(
-            """
-            SELECT id, contact_id, inbox_id, last_message_at, raw_json
-            FROM conversations
-            WHERE coalesce(inbox_id, 0) = ?
-              AND coalesce(last_message_at, '') >= ?
-            ORDER BY coalesce(last_message_at, '') DESC
-            """,
-            (youth_inbox_id, cutoff_date),
-        ).fetchall()
+        placeholders = ",".join("?" for _ in source_inbox_ids)
+        if cutoff_date:
+            conversations = conn.execute(
+                f"""
+                SELECT id, contact_id, inbox_id, last_message_at, raw_json
+                FROM conversations
+                WHERE coalesce(inbox_id, 0) IN ({placeholders})
+                  AND coalesce(last_message_at, '') >= ?
+                ORDER BY coalesce(last_message_at, '') DESC
+                """,
+                (*source_inbox_ids, cutoff_date),
+            ).fetchall()
+        else:
+            conversations = conn.execute(
+                f"""
+                SELECT id, contact_id, inbox_id, last_message_at, raw_json
+                FROM conversations
+                WHERE coalesce(inbox_id, 0) IN ({placeholders})
+                ORDER BY coalesce(last_message_at, '') DESC
+                """,
+                tuple(source_inbox_ids),
+            ).fetchall()
+        included_lead_keys: set[str] = set()
         for conv_row in conversations:
             conv = json.loads(conv_row["raw_json"])
+            inbox_id = int(conv_row["inbox_id"] or 0)
+            if inbox_id != youth_inbox_id:
+                if legacy_youth_inbox_id is None or inbox_id != legacy_youth_inbox_id:
+                    continue
+                if not _is_legacy_youth_lead(conn, int(conv_row["id"])):
+                    continue
             contact = conv.get("contact") if isinstance(conv.get("contact"), dict) else {}
             contact_id = contact.get("id") or conv_row["contact_id"]
             if contact_id is None:
@@ -701,6 +913,9 @@ def sync_salesmessage_to_unified(
 
             recent_message = (conv.get("recent_message") or {}).get("body", "")
             recent_body = _clean_text(recent_message).lower()
+            first_outbound_body = _first_outbound_salesmessage_body(conn, int(conv_row["id"]))
+            if _is_excluded_program_text(recent_message) or _is_excluded_program_text(first_outbound_body):
+                continue
             trial_status = "unknown"
             if "youth" in " ".join(tags) or "free trial" in recent_body:
                 trial_status = "invited"
@@ -710,6 +925,7 @@ def sync_salesmessage_to_unified(
                 trial_status = "declined"
 
             lead_key = f"salesmessage:conversation:{conv_row['id']}"
+            included_lead_keys.add(lead_key)
             conn.execute(
                 """
                 INSERT INTO youth_trial_leads (
@@ -740,7 +956,7 @@ def sync_salesmessage_to_unified(
                 (
                     lead_key,
                     family_key,
-                    int(conv_row["inbox_id"] or 0),
+                    inbox_id,
                     contact_name,
                     contact_phone,
                     trial_status,
@@ -751,26 +967,44 @@ def sync_salesmessage_to_unified(
                     conv_row["last_message_at"],
                     "salesmessage",
                     str(conv_row["id"]),
-                    _json({"tags": tags, "recent_message": recent_message, "inbox_id": conv_row["inbox_id"]}),
+                    _json(
+                        {
+                            "tags": tags,
+                            "recent_message": recent_message,
+                            "inbox_id": conv_row["inbox_id"],
+                            "legacy_youth_match": inbox_id == legacy_youth_inbox_id,
+                        }
+                    ),
                     now,
                     now,
                 ),
             )
             leads += 1
 
-        stale_rows = conn.execute(
-            """
-            SELECT lead_key
-            FROM youth_trial_leads
-            WHERE source_system = 'salesmessage'
-              AND (
-                coalesce(inbox_id, 0) != ?
-                OR coalesce(last_interaction_at, '') < ?
-              )
-            """,
-            (youth_inbox_id, cutoff_date),
-        ).fetchall()
-        stale_keys = [row["lead_key"] for row in stale_rows]
+        if cutoff_date:
+            stale_rows = conn.execute(
+                f"""
+                SELECT lead_key
+                FROM youth_trial_leads
+                WHERE source_system = 'salesmessage'
+                  AND (
+                    coalesce(inbox_id, 0) NOT IN ({placeholders})
+                    OR coalesce(last_interaction_at, '') < ?
+                  )
+                """,
+                (*source_inbox_ids, cutoff_date),
+            ).fetchall()
+        else:
+            stale_rows = conn.execute(
+                f"""
+                SELECT lead_key
+                FROM youth_trial_leads
+                WHERE source_system = 'salesmessage'
+                  AND coalesce(inbox_id, 0) IN ({placeholders})
+                """,
+                tuple(source_inbox_ids),
+            ).fetchall()
+        stale_keys = [row["lead_key"] for row in stale_rows if row["lead_key"] not in included_lead_keys]
         if stale_keys:
             placeholders = ",".join("?" for _ in stale_keys)
             conn.execute(
@@ -797,6 +1031,7 @@ def sync_daysmart_to_unified(
     customers = 0
     memberships = 0
     class_registrations = 0
+    ftyc_trial_registrations = 0
     product_name_cache: dict[int, str | None] = {}
     event_cache: dict[int, tuple[str | None, str | None]] = {}
     with get_conn(db_path) as conn:
@@ -805,8 +1040,7 @@ def sync_daysmart_to_unified(
             start_page = 1
             customer_last_page = 0
         else:
-            # Fresh hosted databases need the full customer directory to match older parent accounts.
-            start_page = 1
+            start_page = max(1, customer_last_page - max_pages + 1)
         for page in range(start_page, customer_last_page + 1):
             data = first_data if page == 1 else client.list_customers(page_number=page, page_size=page_size)[0]
             if not data:
@@ -859,7 +1093,7 @@ def sync_daysmart_to_unified(
             start_page = 1
             membership_last_page = 0
         else:
-            start_page = 1
+            start_page = max(1, membership_last_page - max_pages + 1)
         for page in range(start_page, membership_last_page + 1):
             data = first_data if page == 1 else client.list_memberships(page_number=page, page_size=page_size)[0]
             if not data:
@@ -935,12 +1169,15 @@ def sync_daysmart_to_unified(
             start_page = 1
             registration_last_page = 0
         else:
-            start_page = _find_cutoff_start_page(
+            start_page = max(
+                max(1, registration_last_page - max_pages + 1),
+                _find_cutoff_start_page(
                 client.list_registrations,
                 last_page=registration_last_page,
                 page_size=page_size,
                 cutoff=DAYSMART_HISTORY_CUTOFF,
                 date_fields=("created_at", "created", "updated_at"),
+                ),
             )
         for page in range(start_page, registration_last_page + 1):
             data = first_data if page == 1 and start_page == 1 else client.list_registrations(
@@ -965,12 +1202,15 @@ def sync_daysmart_to_unified(
             start_page = 1
             event_registration_last_page = 0
         else:
-            start_page = _find_cutoff_start_page(
+            start_page = max(
+                max(1, event_registration_last_page - max_pages + 1),
+                _find_cutoff_start_page(
                 client.list_event_registrations,
                 last_page=event_registration_last_page,
                 page_size=page_size,
                 cutoff=DAYSMART_HISTORY_CUTOFF,
                 date_fields=("updated_at", "created_at", "date", "start"),
+                ),
             )
         for page in range(start_page, event_registration_last_page + 1):
             data = first_data if page == 1 and start_page == 1 else client.list_event_registrations(
@@ -1025,6 +1265,14 @@ def sync_daysmart_to_unified(
                 )
                 class_registrations += 1
 
+        ftyc_trial_registrations = _refresh_ftyc_trial_registration_cache(
+            conn,
+            client,
+            page_size=page_size,
+            max_pages=max_pages,
+            delete_unmatched=False,
+        )
+
     return {
         "families_upserted": families,
         "children_upserted": children,
@@ -1032,6 +1280,7 @@ def sync_daysmart_to_unified(
         "daysmart_memberships_upserted": memberships,
         "attendance_rows_processed": attendance,
         "daysmart_class_registrations_upserted": class_registrations,
+        "daysmart_ftyc_trial_registrations_upserted": ftyc_trial_registrations,
     }
 
 

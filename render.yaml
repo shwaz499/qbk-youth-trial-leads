@@ -1,28 +1,18 @@
 services:
   - type: web
-    name: qbk-youth-trial-leads
+    name: qbk-youth-kpi-snapshot
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: DATABASE_URL
-        value: /tmp/salesmessage_agent.db
-      - key: SALESMESSAGE_API_TOKEN
-        sync: false
-      - key: SALESMESSAGE_BASE_URL
-        value: https://api.salesmessage.com/pub/v2.2
+      - key: YOUTH_KPI_SNAPSHOT_MODE
+        value: "true"
+      - key: YOUTH_KPI_SNAPSHOT_TARGET
+        value: render
+      - key: YOUTH_KPI_SNAPSHOT_DIR
+        value: /opt/render/project/src/app/snapshot
       - key: YOUTH_INBOX_ID
         value: "207883"
-      - key: DASH_API_CLIENT_ID
+      - key: APP_PASSWORD
         sync: false
-      - key: DASH_API_SECRET
-        sync: false
-      - key: DASH_API_BASE_URL
-        value: https://api.dashplatform.com
-      - key: DAYSMART_COMPANY
-        value: qbksports
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4.1-mini

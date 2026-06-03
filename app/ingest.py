@@ -31,7 +31,11 @@ def _parse_salesmessage_timestamp(value: str | None) -> dt.datetime | None:
 def _default_min_last_message_at(
     conn: sqlite3.Connection,
     explicit_value: str | None,
+    *,
+    full_history: bool = False,
 ) -> dt.datetime | None:
+    if full_history:
+        return None
     if explicit_value:
         return _parse_salesmessage_timestamp(explicit_value)
     row = conn.execute("SELECT MAX(last_message_at) AS ts FROM conversations").fetchone()
@@ -194,6 +198,7 @@ def sync_conversations(
     max_message_pages_per_conversation: int = 0,
     target_inbox_ids: set[int] | None = None,
     min_last_message_at: str | None = None,
+    full_history: bool = False,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, int]:
     conversation_count = 0
@@ -233,7 +238,7 @@ def sync_conversations(
         )
 
     with get_conn(db_path) as conn:
-        cutoff_dt = _default_min_last_message_at(conn, min_last_message_at)
+        cutoff_dt = _default_min_last_message_at(conn, min_last_message_at, full_history=full_history)
         known_last_message_at, known_latest_message_id = _load_existing_conversation_state(conn)
 
         seen_ids: set[int] = set()

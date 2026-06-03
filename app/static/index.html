@@ -155,6 +155,38 @@
       font-weight: 600;
     }
 
+    .filter-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .filter-select {
+      appearance: none;
+      border: 1px solid #d7decf;
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--ink);
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 7px 30px 7px 12px;
+      background-image:
+        linear-gradient(45deg, transparent 50%, #597081 50%),
+        linear-gradient(135deg, #597081 50%, transparent 50%);
+      background-position:
+        calc(100% - 16px) 52%,
+        calc(100% - 11px) 52%;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+
     .btn {
       border: 0;
       border-radius: 10px;
@@ -234,10 +266,82 @@
       font-weight: 600;
     }
 
+	    .class-status {
+	      font-weight: 600;
+	    }
+
+	    .class-status.today {
+	      background: #fff2a8;
+	      border-radius: 4px;
+	      box-decoration-break: clone;
+	      -webkit-box-decoration-break: clone;
+	      padding: 1px 3px;
+	    }
+
+	    .class-status.checked-in {
+	      color: #0c7a69;
+	    }
+
+    .class-status.missed {
+      color: #b23b35;
+    }
+
+    .class-status.pending-registration {
+      color: #7a3db8;
+    }
+
     .memberships {
       max-width: 280px;
       color: var(--ink);
       line-height: 1.4;
+    }
+
+    .notes-cell {
+      min-width: 180px;
+    }
+
+    .notes-input {
+      width: 100%;
+      min-height: 42px;
+      overflow: hidden;
+      resize: none;
+      border: 1px solid #d7decf;
+      border-radius: 8px;
+      background: #fffefa;
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 7px 8px;
+    }
+
+    .notes-input:focus {
+      outline: 2px solid rgba(22, 90, 143, 0.18);
+      border-color: #8ba8bd;
+    }
+
+    .notes-input.saving {
+      opacity: 0.65;
+    }
+
+    .notes-filter-button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      font-size: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+      padding: 0;
+      text-transform: inherit;
+    }
+
+    .notes-filter-button.active {
+      color: var(--blue);
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
 
     .empty {
@@ -286,7 +390,7 @@
     <section class="hero">
       <div>
         <h1 class="title">Youth Trial Leads</h1>
-        <p class="subtitle">All March 2026-and-later Salesmessage leads from the Youth inbox that have a matching DaySmart account. Salesmessage is used for lead headers and conversation links; DaySmart drives the account, class, and membership signals.</p>
+        <p class="subtitle">All March 2026-and-later youth trial leads. Salesmessage drives youth conversation leads, Gmail/Eventbrite adds email signups even before DaySmart accounts exist, and DaySmart drives account, class, and membership signals once they are created.</p>
       </div>
       <div class="meta">
         <div id="lastRefreshed">Last refresh: --</div>
@@ -298,6 +402,16 @@
         <div class="toolbar-left">
           <button class="btn btn-teal" id="btnSyncAll">Sync</button>
           <button class="btn btn-blue" id="btnLogout" type="button">Log Out</button>
+          <label class="filter-label">
+            Leads
+            <select class="filter-select" id="leadFilter">
+              <option value="all">All</option>
+              <option value="no_show">No Show</option>
+              <option value="attended">Attended</option>
+              <option value="class_scheduled">Class Scheduled</option>
+              <option value="no_class">No Class</option>
+            </select>
+          </label>
         </div>
         <div class="toolbar-right">
           <span class="pill" id="leadCount">0 leads</span>
@@ -314,6 +428,7 @@
               <th>Child's Name</th>
               <th>Phone</th>
               <th>Free Trial Class</th>
+              <th><button class="notes-filter-button" id="notesFilterButton" type="button" title="Show only leads with notes">Notes</button></th>
               <th>Membership</th>
             </tr>
           </thead>
@@ -334,6 +449,10 @@
     const statusLine = q("statusLine");
     const leadCount = q("leadCount");
     const lastRefreshed = q("lastRefreshed");
+    const leadFilter = q("leadFilter");
+    const notesFilterButton = q("notesFilterButton");
+    let allLeads = [];
+    let notesOnly = false;
 
     function setStatus(text, isError = false) {
       statusLine.textContent = text;
@@ -342,6 +461,22 @@
 
     function timestamp() {
       return new Date().toLocaleString();
+    }
+
+    function formatPhone(value) {
+      const digits = String(value || "").replace(/\D/g, "");
+      const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+      if (ten.length !== 10) return value || "--";
+      return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
     }
 
     function setAuthMessage(text, isError = false) {
@@ -411,38 +546,183 @@
       authPassword.value = "";
     }
 
-    function renderLeads(items) {
-      leadCount.textContent = `${items.length} lead${items.length === 1 ? "" : "s"}`;
+	    function leadMatchesFilter(row, filter) {
+	      const status = row.free_trial_class_status || "";
+	      const hasClass = Boolean(row.free_trial_class_display);
+	      if (filter === "no_show") return status === "missed";
+	      if (filter === "attended") return status === "checked_in";
+	      if (filter === "class_scheduled") return hasClass && status !== "checked_in" && status !== "missed";
+	      if (filter === "no_class") return !hasClass;
+	      return true;
+	    }
+
+	    function rowHasNote(row) {
+	      return Boolean(String(row.local_note || "").trim());
+	    }
+
+    function autoSizeNoteInput(input) {
+      input.style.height = "auto";
+      input.style.height = `${Math.max(input.scrollHeight, 42)}px`;
+    }
+
+    function autoSizeNoteInputs() {
+      for (const input of leadsBody.querySelectorAll(".notes-input")) {
+        autoSizeNoteInput(input);
+      }
+    }
+
+	    function parseClassSortTime(value) {
+	      if (!value) return Number.POSITIVE_INFINITY;
+	      const text = String(value).trim();
+	      const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2})(?::(\d{2}))?)?/);
+	      if (iso) {
+	        const [, year, month, day, hour = "0", minute = "0"] = iso;
+	        return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)).getTime();
+	      }
+	      const display = text.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b.*?(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i);
+	      if (!display) return Number.POSITIVE_INFINITY;
+	      let [, month, day, year, hour, minute = "0", meridiem] = display;
+	      let fullYear = Number(year);
+	      if (fullYear < 100) fullYear += 2000;
+	      let hourNumber = Number(hour) % 12;
+	      if (meridiem.toUpperCase() === "PM") hourNumber += 12;
+	      return new Date(fullYear, Number(month) - 1, Number(day), hourNumber, Number(minute)).getTime();
+	    }
+
+	    function classSortTime(row) {
+	      for (const value of [
+	        row.free_trial_class_display,
+	        row.free_trial_class_date,
+	        row.trial_class_when_display,
+	        row.trial_class_when,
+	      ]) {
+	        const parsed = parseClassSortTime(value);
+	        if (Number.isFinite(parsed)) return parsed;
+	      }
+	      return Number.POSITIVE_INFINITY;
+	    }
+
+	    function classIsToday(row) {
+	      const time = classSortTime(row);
+	      if (!Number.isFinite(time)) return false;
+	      const classDate = new Date(time);
+	      const today = new Date();
+	      return (
+	        classDate.getFullYear() === today.getFullYear()
+	        && classDate.getMonth() === today.getMonth()
+	        && classDate.getDate() === today.getDate()
+	      );
+	    }
+
+	    function currentFilteredLeads() {
+	      const filter = leadFilter.value || "all";
+	      const items = allLeads.filter((row) => leadMatchesFilter(row, filter) && (!notesOnly || rowHasNote(row)));
+	      if (filter === "class_scheduled") {
+	        items.sort((a, b) => {
+	          const dateDiff = classSortTime(a) - classSortTime(b);
+	          if (dateDiff) return dateDiff;
+	          return `${a.parent_name || ""} ${a.child_name || ""}`.localeCompare(`${b.parent_name || ""} ${b.child_name || ""}`);
+	        });
+	      } else if (filter === "attended" || filter === "no_show") {
+	        items.sort((a, b) => {
+	          const aTime = classSortTime(a);
+	          const bTime = classSortTime(b);
+	          const aHasDate = Number.isFinite(aTime);
+	          const bHasDate = Number.isFinite(bTime);
+	          if (aHasDate && bHasDate && aTime !== bTime) return bTime - aTime;
+	          if (aHasDate !== bHasDate) return aHasDate ? -1 : 1;
+	          return `${a.parent_name || ""} ${a.child_name || ""}`.localeCompare(`${b.parent_name || ""} ${b.child_name || ""}`);
+	        });
+	      }
+	      return items;
+	    }
+
+    function renderLeads() {
+      const items = currentFilteredLeads();
+      const filter = leadFilter.value || "all";
+      notesFilterButton.classList.toggle("active", notesOnly);
+      notesFilterButton.setAttribute("aria-pressed", notesOnly ? "true" : "false");
+      const totalSuffix = filter === "all" ? "" : ` of ${allLeads.length}`;
+      const notesSuffix = notesOnly ? " with notes" : "";
+      leadCount.textContent = `${items.length} lead${items.length === 1 ? "" : "s"}${totalSuffix}${notesSuffix}`;
       leadsBody.innerHTML = "";
 
       if (!items.length) {
-        leadsBody.innerHTML = '<tr><td colspan="5" class="empty">No qualifying youth trial leads found.</td></tr>';
+        leadsBody.innerHTML = '<tr><td colspan="6" class="empty">No qualifying youth trial leads found.</td></tr>';
         return;
       }
 
       for (const row of items) {
         const leadKey = String(row.lead_key).replaceAll('"', "&quot;");
-        const conversationUrl = row.conversation_url || "#";
-        const parentName = row.contact_name || "--";
+        const noteKey = escapeHtml(row.local_note_key || row.lead_key || "");
+        const noteText = escapeHtml(row.local_note || "");
+        const phoneRaw = row.contact_phone || "";
+        const phoneDisplay = formatPhone(phoneRaw);
+        const phoneUrl = row.phone_url || row.conversation_url || "#";
+        const phoneTitle = row.phone_url_kind === "compose"
+          ? "Open Salesmessage new message with Youth sender"
+          : row.phone_url_kind === "conversation"
+            ? "Open Salesmessage conversation"
+            : "Open source record";
+        const parentName = row.parent_name || row.contact_name || "--";
         const childName = row.child_name || "--";
+        const classStatus = row.free_trial_class_status === "checked_in"
+          ? "checked-in"
+          : row.free_trial_class_status === "missed"
+            ? "missed"
+            : row.free_trial_class_status === "pending-registration"
+              ? "pending-registration"
+            : "";
+        const classDisplay = row.free_trial_class_display || "";
+	        const todayClass = classIsToday(row) ? "today" : "";
+	        const classCell = classDisplay
+	          ? `<span class="class-status ${classStatus} ${todayClass}">${classDisplay}</span>`
+	          : "";
 
         leadsBody.insertAdjacentHTML("beforeend", `
           <tr data-lead-key="${leadKey}">
             <td>${row.parent_daysmart_url ? `<a href="${row.parent_daysmart_url}" target="_blank" rel="noreferrer">${parentName}</a>` : parentName}</td>
             <td>${row.child_daysmart_url ? `<a href="${row.child_daysmart_url}" target="_blank" rel="noreferrer">${childName}</a>` : childName}</td>
-            <td class="mono"><a href="${conversationUrl}" target="_blank" rel="noreferrer">${row.contact_phone || "--"}</a></td>
-            <td>${row.free_trial_class_display || ""}</td>
+            <td class="mono">${phoneRaw ? `<a href="${phoneUrl}" target="_blank" rel="noreferrer" title="${phoneTitle}">${phoneDisplay}</a>` : "--"}</td>
+            <td>${classCell}</td>
+            <td class="notes-cell"><textarea class="notes-input" data-note-key="${noteKey}" rows="2">${noteText}</textarea></td>
             <td><input type="checkbox" style="width:auto;" ${row.has_membership ? "checked" : ""} disabled /></td>
           </tr>
         `);
       }
+      autoSizeNoteInputs();
     }
 
-    async function refreshLeads() {
-      const data = await getJson("/dashboard/trial-leads?limit=1000");
-      renderLeads(data.items || []);
-      lastRefreshed.textContent = `Last refresh: ${timestamp()}`;
+    async function saveLeadNote(input) {
+      const noteKey = input.dataset.noteKey || "";
+      if (!noteKey) return;
+      input.classList.add("saving");
+      try {
+        await sendJson("/dashboard/trial-lead-notes", "POST", {
+          note_key: noteKey,
+          note_text: input.value,
+        });
+        for (const row of allLeads) {
+          if ((row.local_note_key || row.lead_key || "") === noteKey) {
+            row.local_note = input.value;
+          }
+        }
+        if (notesOnly) renderLeads();
+        setStatus("Note saved.");
+      } catch (error) {
+        setStatus(error.message || "Could not save note.", true);
+      } finally {
+        input.classList.remove("saving");
+      }
     }
+
+	    async function refreshLeads(attendanceRefresh = false) {
+	      const attendanceParam = attendanceRefresh ? "&attendance_refresh=true" : "";
+	      const data = await getJson(`/dashboard/trial-leads?limit=1000${attendanceParam}`);
+	      allLeads = data.items || [];
+	      renderLeads();
+	      lastRefreshed.textContent = `Last refresh: ${timestamp()}`;
+	    }
 
     async function withButton(button, fn) {
       button.disabled = true;
@@ -510,13 +790,30 @@
     q("btnSyncAll").addEventListener("click", () => withButton(q("btnSyncAll"), async () => {
       setStatus("Starting sync...");
       await sendJson("/sync/start", "POST", {
-        daysmart_max_pages: 25,
+        daysmart_max_pages: 2,
         daysmart_page_size: 200,
-      });
-      await pollSyncUntilDone();
-      await refreshLeads();
-    }));
+	      });
+	      await pollSyncUntilDone();
+	      setStatus("Refreshing recent check-ins...");
+	      await refreshLeads(true);
+	    }));
     q("btnLogout").addEventListener("click", () => withButton(q("btnLogout"), logout));
+    leadFilter.addEventListener("change", renderLeads);
+    notesFilterButton.addEventListener("click", () => {
+      notesOnly = !notesOnly;
+      renderLeads();
+      setStatus(notesOnly ? "Showing leads with notes." : "Lead list ready.");
+    });
+    leadsBody.addEventListener("change", (event) => {
+      if (event.target && event.target.classList.contains("notes-input")) {
+        saveLeadNote(event.target);
+      }
+    });
+    leadsBody.addEventListener("input", (event) => {
+      if (event.target && event.target.classList.contains("notes-input")) {
+        autoSizeNoteInput(event.target);
+      }
+    });
     authForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       authSubmitButton.disabled = true;

@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QBK Youth Deal Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --stage-count: 5;
+      --bg: #eef4f8;
+      --ink: #123044;
+      --muted: #60788a;
+      --line: #d5e2ec;
+      --panel: #f9fcfe;
+      --lane: #e8f0f6;
+      --card: #ffffff;
+      --teal: #0696ad;
+      --navy: #173d63;
+      --green: #12866f;
+      --gold: #b98712;
+      --red: #b84f5a;
+      --purple: #7659cf;
+      --shadow: 0 10px 22px rgba(18, 48, 68, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Space Grotesk", sans-serif;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255,255,255,0.44) 1px, transparent 1px),
+        linear-gradient(180deg, #f7fbfe 0%, var(--bg) 100%);
+      background-size: 28px 28px, 28px 28px, auto;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--teal); text-decoration: underline; }
+    button, input, select { font: inherit; }
+
+    .auth-gate {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(18, 48, 68, 0.28);
+      backdrop-filter: blur(12px);
+    }
+
+    .auth-gate.hidden { display: none; }
+
+    .auth-card {
+      width: min(430px, 100%);
+      border: 1px solid rgba(255,255,255,0.75);
+      border-radius: 22px;
+      padding: 26px;
+      background: var(--panel);
+      box-shadow: 0 24px 60px rgba(18, 48, 68, 0.2);
+    }
+
+    .auth-card h1 {
+      margin: 0 0 8px;
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 42px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .auth-form { display: grid; gap: 12px; margin-top: 16px; }
+    .auth-form input, .control, .btn {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: #fff;
+    }
+
+    .app-shell { min-width: 1120px; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(249, 252, 254, 0.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 230px;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      color: white;
+      background: linear-gradient(135deg, var(--navy), var(--teal));
+      font-weight: 800;
+    }
+
+    .brand-title {
+      display: grid;
+      gap: 1px;
+    }
+
+    .brand-title strong {
+      font-family: "Barlow Condensed", sans-serif;
+      font-size: 26px;
+      line-height: 0.9;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .brand-title span, .status-line, .meta, .tiny {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+    }
+
+    .searchbar {
+      position: relative;
+    }
+
+    .searchbar input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px 12px 38px;
+      background: #fff;
+      color: var(--ink);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+    }
+
+    .searchbar span {
+      position: absolute;
+      left: 13px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 420px;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      cursor: pointer;
+      width: auto;
+      min-width: 96px;
+      font-weight: 700;
+      color: var(--navy);
+      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    }
+    .btn:hover { background: #f0f7fb; }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { cursor: wait; opacity: 0.62; }
+    .btn-primary { color: white; border-color: transparent; background: linear-gradient(180deg, #13a7a0, #087f8f); }
+    .btn-primary:hover { background: linear-gradient(180deg, #12a09a, #087887); }
+
+    .board-wrap {
+      height: calc(100vh - 58px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 10px 10px 16px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(var(--stage-count), minmax(0, 1fr));
+      gap: 8px;
+      align-items: start;
+      min-height: 100%;
+      width: 100%;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+      min-height: calc(100vh - 88px);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--lane);
+      overflow: hidden;
+    }
+
+    .lane-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 8px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,0.66);
+    }
+
+    .lane-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-weight: 800;
+      color: var(--navy);
+      font-size: 13px;
+    }
+
+    .lane-title span:first-child {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--teal);
+      flex: 0 0 auto;
+    }
+
+    .count-pill {
+      display: inline-flex;
+      min-width: 26px;
+      justify-content: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #e9f5fb;
+      color: var(--navy);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .lane-body {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      padding: 7px;
+      max-height: calc(100vh - 153px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .lane-foot {
+      padding: 7px 8px;
+      border-top: 1px solid var(--line);
+      background: rgba(255,255,255,0.62);
+    }
+
+    .deal-card {
+      position: relative;
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid rgba(18, 48, 68, 0.12);
+      border-radius: 12px;
+      background: var(--card);
+      box-shadow: 0 2px 6px rgba(18, 48, 68, 0.05);
+      animation: rise 220ms ease both;
+    }
+
+    .deal-card:hover {
+      border-color: rgba(6, 150, 173, 0.45);
+      box-shadow: var(--shadow);
+      transform: translateY(-1px);
+    }
+
+    .deal-main {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      padding-right: 20px;
+    }
+
+    .deal-name {
+      color: var(--teal);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.17;
+      overflow-wrap: anywhere;
+    }
+
+    .child-name {
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .hourglass {
+      position: absolute;
+      top: 13px;
+      right: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .deal-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding-top: 7px;
+      border-top: 1px solid rgba(18, 48, 68, 0.08);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .deal-line > * { min-width: 0; }
+
+    .deal-line a,
+    .deal-line strong {
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    .deal-line strong { color: var(--ink); font-weight: 700; }
+
+    .card-notes {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .card-notes span {
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      line-height: 1;
+    }
+
+    .notes-input {
+      width: 100%;
+      min-height: 36px;
+      overflow: hidden;
+      resize: none;
+      border: 1px solid #d7decf;
+      border-radius: 8px;
+      background: #fffefa;
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.35;
+      padding: 7px 8px;
+    }
+
+    .notes-input:focus {
+      outline: 2px solid rgba(22, 90, 143, 0.18);
+      border-color: #8ba8bd;
+    }
+
+    .notes-input.saving {
+      opacity: 0.65;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: 4px;
+      max-width: 100%;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: #edf5f9;
+      color: var(--navy);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 10px;
+      font-weight: 700;
+      white-space: normal;
+      line-height: 1.25;
+    }
+
+    .chip-text {
+      display: inline-block;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .chip.class-chip {
+      width: 100%;
+      min-width: 0;
+      align-items: center;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .chip.class-chip .chip-text {
+      white-space: nowrap;
+      overflow-wrap: normal;
+      transform-origin: left center;
+    }
+
+    .chip.green { background: rgba(18, 134, 111, 0.12); color: var(--green); }
+    .chip.gold { background: rgba(185, 135, 18, 0.14); color: #7a5a07; }
+    .chip.red { background: rgba(184, 79, 90, 0.12); color: var(--red); }
+    .chip.purple { background: rgba(118, 89, 207, 0.13); color: var(--purple); }
+
+    .card-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      align-items: center;
+      padding-top: 2px;
+    }
+
+    .status-button {
+      cursor: pointer;
+      border: 1px solid rgba(18, 48, 68, 0.12);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: var(--navy);
+      background: #edf5f9;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .status-button.close {
+      color: var(--red);
+      background: rgba(184, 79, 90, 0.1);
+    }
+
+    .status-button.open {
+      color: var(--green);
+      background: rgba(18, 134, 111, 0.12);
+    }
+
+    .status-button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    .empty {
+      display: grid;
+      place-items: center;
+      min-height: 120px;
+      color: var(--muted);
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      border: 1px dashed rgba(18,48,68,0.15);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.36);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 900px) {
+      .app-shell { min-width: 980px; }
+      .top-actions { min-width: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-gate" id="authGate">
+    <div class="auth-card">
+      <h1>Youth Deals</h1>
+      <div class="meta">Enter the shared password to view the board.</div>
+      <form class="auth-form" id="authForm">
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="Password" />
+        <button class="btn btn-primary" id="authButton" type="submit">Unlock Board</button>
+      </form>
+      <div class="status-line" id="authMessage" style="margin-top:12px;">Ready.</div>
+    </div>
+  </div>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">Q</div>
+        <div class="brand-title">
+          <strong>Youth Deal Board</strong>
+          <span id="statusLine">Loading...</span>
+        </div>
+      </div>
+      <label class="searchbar">
+        <span>⌕</span>
+        <input id="searchInput" type="search" placeholder="Search parent, child, phone, class, membership..." />
+      </label>
+      <div class="top-actions">
+        <select class="control" id="windowSelect" style="width:150px;">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="this_year" selected>This Year</option>
+          <option value="all_time">All Time</option>
+        </select>
+        <button class="btn" id="closedWonToggle" type="button">Show Closed</button>
+        <button class="btn btn-primary" id="refreshButton">Refresh</button>
+        <button class="btn" id="logoutButton">Log Out</button>
+      </div>
+    </header>
+
+    <section class="board-wrap">
+      <div class="board" id="board"></div>
+    </section>
+  </main>
+
+  <script>
+    const q = (id) => document.getElementById(id);
+    const authGate = q("authGate");
+    const authForm = q("authForm");
+    const authPassword = q("authPassword");
+    const authButton = q("authButton");
+    const authMessage = q("authMessage");
+    const statusLine = q("statusLine");
+    const searchInput = q("searchInput");
+    const windowSelect = q("windowSelect");
+    const closedWonToggle = q("closedWonToggle");
+    const refreshButton = q("refreshButton");
+    const logoutButton = q("logoutButton");
+    const board = q("board");
+
+    let allItems = [];
+    let latestPayload = null;
+    let snapshotMode = false;
+    let refreshToken = 0;
+    let showClosedWon = localStorage.getItem("youthDealsShowClosedWon") === "true";
+
+    const stages = [
+      { key: "messaged", label: "Leads Messaged", dot: "#0696ad" },
+      { key: "responded", label: "Leads Responded", dot: "#4f82c0" },
+      { key: "scheduled", label: "Trial Scheduled", dot: "#7659cf" },
+      { key: "attended", label: "Trial Attended", dot: "#12866f" },
+      { key: "no_show", label: "No Show", dot: "#b98712" },
+      { key: "membership", label: "Membership", dot: "#0a7f64" },
+      { key: "closed_lost", label: "Closed Lost", dot: "#b84f5a" },
+    ];
+
+    function visibleStages() {
+      if (showClosedWon) return stages;
+      return stages.filter((stage) => !["membership", "closed_lost"].includes(stage.key));
+    }
+
+    function applyClosedWonVisibility() {
+      const activeStages = visibleStages();
+      document.documentElement.style.setProperty("--stage-count", String(activeStages.length));
+      closedWonToggle.textContent = showClosedWon ? "Hide Closed" : "Show Closed";
+      closedWonToggle.setAttribute("aria-pressed", showClosedWon ? "true" : "false");
+      closedWonToggle.title = showClosedWon ? "Hide Membership and Closed Lost" : "Show Membership and Closed Lost";
+    }
+
+    function text(value, fallback = "") {
+      return value === null || value === undefined || value === "" ? fallback : String(value);
+    }
+
+    function setStatus(message, isError = false) {
+      statusLine.textContent = message;
+      statusLine.style.color = isError ? "#b84f5a" : "#60788a";
+    }
+
+    function setAuthMessage(message, isError = false) {
+      authMessage.textContent = message;
+      authMessage.style.color = isError ? "#b84f5a" : "#60788a";
+    }
+
+    function showAuth(message = "Enter the shared password to view the board.") {
+      authGate.classList.remove("hidden");
+      setAuthMessage(message);
+    }
+
+    function hideAuth() {
+      authGate.classList.add("hidden");
+    }
+
+    function queryForWindow() {
+      const selected = windowSelect.value;
+      if (selected === "this_year" || selected === "all_time") return `window=${selected}`;
+      return `days=${Number(selected) || 7}`;
+    }
+
+    async function readJson(url) {
+      const response = await fetch(url);
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw }; }
+      if (response.status === 401) {
+        showAuth("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
+      if (!response.ok) throw new Error(data.detail || data.error || raw || `HTTP ${response.status}`);
+      return data;
+    }
+
+    async function sendJson(url, method, payload) {
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw }; }
+      if (response.status === 401) {
+        showAuth("Session expired. Enter the password again.");
+        throw new Error(data.detail || "Authentication required.");
+      }
+      if (!response.ok) throw new Error(data.detail || data.error || raw || `HTTP ${response.status}`);
+      return data;
+    }
+
+    async function login(password) {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw }; }
+      if (!response.ok) throw new Error(data.detail || data.error || raw || `HTTP ${response.status}`);
+      snapshotMode = Boolean(data.snapshot_mode);
+      applySnapshotMode();
+      hideAuth();
+      await loadBoard(false);
+    }
+
+    function applySnapshotMode() {
+      if (!snapshotMode) return;
+      refreshButton.textContent = "Snapshot Only";
+      refreshButton.title = "This uploaded version cannot call Salesmessage or DaySmart.";
+    }
+
+    async function logout() {
+      await sendJson("/api/logout", "POST", {});
+      showAuth("Signed out.");
+      setStatus("Enter password to continue.");
+    }
+
+    function hasLeadResponse(item) {
+      return Boolean(text(item.latest_inbound_text).trim() || text(item.latest_inbound_signal).trim());
+    }
+
+    function classify(item) {
+      const override = text(item.local_status_override).trim();
+      const classStatus = text(item.free_trial_class_status).trim();
+      if (override === "closed_lost") return "closed_lost";
+      if (item.has_membership || item.lead_status === "Membership purchased") return "membership";
+      if (item.lead_status === "Lost" && override !== "open") return "closed_lost";
+      if (item.has_attended || item.lead_status === "Attended" || classStatus === "checked_in") return "attended";
+      if (classStatus === "upcoming" || classStatus === "pending-registration") return "scheduled";
+      if (item.has_no_show || item.lead_status === "No-show" || classStatus === "missed") return "no_show";
+      if (item.has_scheduled || item.lead_status === "Scheduled") return "scheduled";
+      if (hasLeadResponse(item)) return "responded";
+      return "messaged";
+    }
+
+    function searchable(item) {
+      return [
+        item.parent_name,
+        item.child_name,
+        item.parent_phone,
+        item.free_trial_class_display,
+        item.memberships_display,
+        item.lead_status,
+      ].map((v) => text(v).toLowerCase()).join(" ");
+    }
+
+    function filteredItems() {
+      const term = searchInput.value.trim().toLowerCase();
+      if (!term) return allItems;
+      return allItems.filter((item) => searchable(item).includes(term));
+    }
+
+    function formatPhone(phone) {
+      const value = text(phone, "--");
+      return value === "--" ? "--" : value;
+    }
+
+    function shortDate(value) {
+      return text(value, "--").replace(/, 2026|, 2025|, 2024/g, "");
+    }
+
+    function createEl(tag, className, content) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      if (content !== undefined) el.textContent = content;
+      return el;
+    }
+
+    function appendLink(parent, href, label, className) {
+      if (!href) {
+        parent.appendChild(createEl("span", className, label));
+        return;
+      }
+      const a = createEl("a", className, label);
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      parent.appendChild(a);
+    }
+
+    function profileUrl(daysmartUrl, fallbackUrl) {
+      return daysmartUrl || fallbackUrl || "";
+    }
+
+    function chip(label, colorClass) {
+      const el = createEl("span", `chip ${colorClass || ""}`.trim());
+      el.appendChild(createEl("span", "chip-text", label));
+      return el;
+    }
+
+    function classDisplayLabel(label) {
+      return text(label)
+        .replace(/^Free Youth Indoor Beach Volleyball Class\s*/i, "")
+        .trim();
+    }
+
+    function timestamp(value) {
+      const raw = text(value).trim();
+      if (!raw || raw === "--") return null;
+      const parsed = Date.parse(raw);
+      return Number.isNaN(parsed) ? null : parsed;
+    }
+
+    function classTimestamp(item) {
+      const label = text(item.free_trial_class_display);
+      const match = label.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+      if (!match) return null;
+      const month = Number(match[1]) - 1;
+      const day = Number(match[2]);
+      const yearValue = Number(match[3]);
+      const year = yearValue < 100 ? 2000 + yearValue : yearValue;
+      let hour = Number(match[4]);
+      const minute = Number(match[5]);
+      const meridiem = match[6].toUpperCase();
+      if (meridiem === "PM" && hour !== 12) hour += 12;
+      if (meridiem === "AM" && hour === 12) hour = 0;
+      return new Date(year, month, day, hour, minute).getTime();
+    }
+
+    function newestInteractionTimestamp(item) {
+      return timestamp(item.last_interaction_at) || timestamp(item.lead_started_at) || 0;
+    }
+
+    function attendedSortTimestamp(item) {
+      return timestamp(item.attended_at) || classTimestamp(item) || newestInteractionTimestamp(item);
+    }
+
+    function classSortTimestamp(item) {
+      return classTimestamp(item) || timestamp(item.attended_at) || newestInteractionTimestamp(item);
+    }
+
+    function sortLaneItems(stageKey, items) {
+      const sorted = [...items];
+      if (stageKey === "messaged" || stageKey === "responded") {
+        sorted.sort((a, b) => newestInteractionTimestamp(b) - newestInteractionTimestamp(a));
+        return sorted;
+      }
+      if (stageKey === "scheduled") {
+        sorted.sort((a, b) => {
+          const aClass = classTimestamp(a);
+          const bClass = classTimestamp(b);
+          if (aClass !== null && bClass !== null && aClass !== bClass) return aClass - bClass;
+          if (aClass !== null && bClass === null) return -1;
+          if (aClass === null && bClass !== null) return 1;
+          return newestInteractionTimestamp(b) - newestInteractionTimestamp(a);
+        });
+        return sorted;
+      }
+      if (stageKey === "attended") {
+        sorted.sort((a, b) => attendedSortTimestamp(b) - attendedSortTimestamp(a));
+        return sorted;
+      }
+      if (stageKey === "no_show") {
+        sorted.sort((a, b) => classSortTimestamp(b) - classSortTimestamp(a));
+        return sorted;
+      }
+      return sorted;
+    }
+
+    function fitClassChips() {
+      for (const chipEl of document.querySelectorAll(".chip.class-chip")) {
+        const label = chipEl.querySelector(".chip-text");
+        if (!label) continue;
+        label.style.fontSize = "";
+        label.style.transform = "";
+        const chipStyle = getComputedStyle(chipEl);
+        const horizontalPadding =
+          Number.parseFloat(chipStyle.paddingLeft || "0") +
+          Number.parseFloat(chipStyle.paddingRight || "0");
+        const availableWidth = Math.max(0, chipEl.clientWidth - horizontalPadding);
+        if (!availableWidth) continue;
+        const naturalWidth = label.scrollWidth;
+        if (naturalWidth <= availableWidth) continue;
+        const baseSize = Number.parseFloat(getComputedStyle(label).fontSize) || 10;
+        const fittedSize = Math.max(5.5, Math.floor(baseSize * (availableWidth / naturalWidth) * 96) / 100);
+        label.style.fontSize = `${fittedSize}px`;
+        if (label.scrollWidth > availableWidth) {
+          const scale = Math.max(0.72, availableWidth / label.scrollWidth);
+          label.style.transform = `scaleX(${scale})`;
+        }
+      }
+    }
+
+    function autoSizeNoteInput(input) {
+      input.style.height = "auto";
+      input.style.height = `${Math.max(input.scrollHeight, 36)}px`;
+    }
+
+    function autoSizeNoteInputs() {
+      for (const input of board.querySelectorAll(".notes-input")) {
+        autoSizeNoteInput(input);
+      }
+    }
+
+    function card(item, index) {
+      const el = createEl("article", "deal-card");
+      el.style.animationDelay = `${Math.min(index * 14, 180)}ms`;
+
+      const main = createEl("div", "deal-main");
+      appendLink(main, profileUrl(item.parent_daysmart_url, item.conversation_url), text(item.parent_name, "Unknown parent"), "deal-name");
+      const childLabel = text(item.child_name, "No child matched yet");
+      appendLink(main, profileUrl(item.child_daysmart_url, item.conversation_url), childLabel, "child-name");
+      el.appendChild(main);
+      el.appendChild(createEl("span", "hourglass", item.has_membership ? "✓" : "⌛"));
+
+      const chips = createEl("div", "chip-row");
+      if (item.free_trial_class_display) {
+        const status = item.free_trial_class_status;
+        const color = status === "checked_in" ? "green" : status === "missed" ? "red" : status === "pending-registration" ? "purple" : "gold";
+        chips.appendChild(chip(classDisplayLabel(item.free_trial_class_display), `${color} class-chip`));
+      }
+      if (item.has_account) chips.appendChild(chip("Account", ""));
+      if (item.has_attended) chips.appendChild(chip("Checked in", "green"));
+      if (item.has_membership) chips.appendChild(chip("Membership", "green"));
+      if (item.has_no_show) chips.appendChild(chip("No-show", "red"));
+      if (!chips.children.length) chips.appendChild(chip(text(item.lead_status, "New"), ""));
+      el.appendChild(chips);
+
+      const noteKey = text(item.local_note_key || item.item_key);
+      const notes = createEl("label", "card-notes");
+      notes.appendChild(createEl("span", "", "Notes"));
+      const noteInput = createEl("textarea", "notes-input");
+      noteInput.rows = 1;
+      noteInput.placeholder = "Add note";
+      noteInput.dataset.noteKey = noteKey;
+      noteInput.value = text(item.local_note);
+      if (!noteKey) noteInput.disabled = true;
+      notes.appendChild(noteInput);
+      el.appendChild(notes);
+
+      const phoneLine = createEl("div", "deal-line");
+      phoneLine.appendChild(createEl("span", "", "Phone"));
+      appendLink(phoneLine, item.conversation_url, formatPhone(item.parent_phone), "");
+      el.appendChild(phoneLine);
+
+      const dateLine = createEl("div", "deal-line");
+      dateLine.appendChild(createEl("span", "", "Lead started"));
+      dateLine.appendChild(createEl("strong", "", shortDate(item.lead_started_at_display)));
+      el.appendChild(dateLine);
+
+      if (item.memberships_display && item.memberships_display !== "--") {
+        const membershipLine = createEl("div", "deal-line");
+        membershipLine.appendChild(createEl("span", "", "Membership"));
+        membershipLine.appendChild(createEl("strong", "", item.memberships_display));
+        el.appendChild(membershipLine);
+      }
+
+      const actions = createEl("div", "card-actions");
+      const closed = classify(item) === "closed_lost";
+      const overrideButton = createEl("button", `status-button ${closed ? "open" : "close"}`, closed ? "Open" : "Close");
+      overrideButton.type = "button";
+      overrideButton.dataset.overrideKey = item.local_status_override_key || item.item_key || "";
+      overrideButton.dataset.statusOverride = closed ? "open" : "closed_lost";
+      overrideButton.title = closed ? "Move this lead out of Closed Lost" : "Move this lead to Closed Lost";
+      actions.appendChild(overrideButton);
+      el.appendChild(actions);
+
+      return el;
+    }
+
+    function renderBoard() {
+      applyClosedWonVisibility();
+      const activeStages = visibleStages();
+      const items = filteredItems();
+      const groups = new Map(stages.map((stage) => [stage.key, []]));
+      for (const item of items) groups.get(classify(item)).push(item);
+
+      board.replaceChildren(...activeStages.map((stage) => {
+        const lane = createEl("section", "lane");
+        const laneItems = sortLaneItems(stage.key, groups.get(stage.key) || []);
+
+        const head = createEl("div", "lane-head");
+        const title = createEl("div", "lane-title");
+        const dot = createEl("span", "");
+        dot.style.background = stage.dot;
+        title.appendChild(dot);
+        title.appendChild(createEl("span", "", stage.label));
+        head.appendChild(title);
+        head.appendChild(createEl("span", "count-pill", String(laneItems.length)));
+        lane.appendChild(head);
+
+        const body = createEl("div", "lane-body");
+        if (!laneItems.length) {
+          body.appendChild(createEl("div", "empty", "No leads"));
+        } else {
+          laneItems.forEach((item, index) => body.appendChild(card(item, index)));
+        }
+        lane.appendChild(body);
+
+        const foot = createEl("div", "lane-foot tiny", `${laneItems.length} deals`);
+        lane.appendChild(foot);
+        return lane;
+      }));
+      window.requestAnimationFrame(() => {
+        fitClassChips();
+        autoSizeNoteInputs();
+      });
+    }
+
+    async function saveLeadNote(input) {
+      const noteKey = input.dataset.noteKey || "";
+      if (!noteKey) return;
+      input.classList.add("saving");
+      try {
+        await sendJson("/dashboard/trial-lead-notes", "POST", {
+          note_key: noteKey,
+          note_text: input.value,
+        });
+        for (const item of allItems) {
+          if ((item.local_note_key || item.item_key || "") === noteKey) {
+            item.local_note = input.value;
+          }
+        }
+        setStatus("Note saved.");
+      } catch (error) {
+        setStatus(error.message || "Could not save note.", true);
+      } finally {
+        input.classList.remove("saving");
+      }
+    }
+
+    async function updateStatusOverride(button) {
+      const overrideKey = button.dataset.overrideKey || "";
+      const statusOverride = button.dataset.statusOverride || "";
+      if (!overrideKey) {
+        setStatus("Could not save status: missing card key.", true);
+        return;
+      }
+      button.disabled = true;
+      try {
+        await sendJson("/dashboard/trial-lead-status-override", "POST", {
+          override_key: overrideKey,
+          status_override: statusOverride,
+        });
+        for (const item of allItems) {
+          if ((item.local_status_override_key || item.item_key || "") === overrideKey) {
+            item.local_status_override_key = overrideKey;
+            item.local_status_override = statusOverride;
+          }
+        }
+        renderBoard();
+        setStatus(statusOverride === "closed_lost" ? "Lead closed locally." : "Lead opened locally.");
+      } catch (error) {
+        button.disabled = false;
+        setStatus(`Status save failed: ${error.message}`, true);
+      }
+    }
+
+    async function wait(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function pollSyncUntilDone() {
+      while (true) {
+        const data = await readJson("/sync/status");
+        const stage = data.stage || "idle";
+        if (data.running) {
+          setStatus(`Sync in progress: ${stage.replaceAll("_", " ")}...`);
+          await wait(3000);
+          continue;
+        }
+        if (stage === "failed") throw new Error(data.last_error || "Sync failed.");
+        return;
+      }
+    }
+
+    async function loadBoard(forceRefresh = false) {
+      const token = ++refreshToken;
+      setStatus(forceRefresh ? "Refreshing board..." : "Loading board...");
+      if (forceRefresh && !snapshotMode) {
+        const fullHistory = windowSelect.value === "all_time";
+        await sendJson("/sync/start", "POST", {
+          min_last_message_at: fullHistory ? null : undefined,
+          full_history: fullHistory,
+          daysmart_max_pages: 2,
+          daysmart_page_size: 200,
+        });
+        await pollSyncUntilDone();
+      }
+      const data = await readJson(`/dashboard/youth-kpis?${queryForWindow()}${forceRefresh ? "&refresh=true" : ""}`);
+      if (token !== refreshToken) return;
+      latestPayload = data;
+      allItems = data.items || [];
+      renderBoard();
+      const label = data.window?.label || windowSelect.options[windowSelect.selectedIndex]?.text || "selected window";
+      setStatus(`${allItems.length} youth leads • ${label} • ${new Date().toLocaleTimeString()}`);
+    }
+
+    async function guarded(button, fn) {
+      button.disabled = true;
+      try { await fn(); }
+      finally { button.disabled = false; }
+    }
+
+    authForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await guarded(authButton, async () => {
+        try {
+          await login(authPassword.value);
+          authPassword.value = "";
+        } catch (error) {
+          setAuthMessage(error.message || String(error), true);
+        }
+      });
+    });
+
+    refreshButton.addEventListener("click", () => guarded(refreshButton, async () => {
+      try {
+        if (snapshotMode) {
+          setStatus("Snapshot-only online view. Refresh with the local snapshot command.");
+          await loadBoard(false);
+        } else {
+          await loadBoard(true);
+        }
+      } catch (error) {
+        setStatus(`Refresh failed: ${error.message}`, true);
+      }
+    }));
+
+    logoutButton.addEventListener("click", () => guarded(logoutButton, logout));
+    searchInput.addEventListener("input", renderBoard);
+    windowSelect.addEventListener("change", () => loadBoard(false).catch((error) => setStatus(`Load failed: ${error.message}`, true)));
+    closedWonToggle.addEventListener("click", () => {
+      showClosedWon = !showClosedWon;
+      localStorage.setItem("youthDealsShowClosedWon", showClosedWon ? "true" : "false");
+      renderBoard();
+      setStatus(showClosedWon ? "Showing Closed." : "Closed hidden.");
+    });
+    window.addEventListener("resize", () => window.requestAnimationFrame(() => {
+      fitClassChips();
+      autoSizeNoteInputs();
+    }));
+    board.addEventListener("change", (event) => {
+      if (event.target && event.target.classList.contains("notes-input")) {
+        saveLeadNote(event.target);
+      }
+    });
+    board.addEventListener("input", (event) => {
+      if (event.target && event.target.classList.contains("notes-input")) {
+        autoSizeNoteInput(event.target);
+      }
+    });
+    board.addEventListener("click", (event) => {
+      const button = event.target.closest(".status-button");
+      if (!button) return;
+      updateStatusOverride(button);
+    });
+
+    applyClosedWonVisibility();
+    readJson("/api/auth/status")
+      .then((data) => {
+        snapshotMode = Boolean(data.snapshot_mode);
+        applySnapshotMode();
+        if (data.authenticated) {
+          hideAuth();
+          return loadBoard(false);
+        }
+        showAuth();
+        setStatus("Enter password to continue.");
+      })
+      .catch((error) => {
+        showAuth();
+        setStatus(`Load failed: ${error.message}`, true);
+      });
+  </script>
+</body>
+</html>

@@ -150,6 +150,18 @@ CREATE TABLE IF NOT EXISTS youth_trial_leads (
     FOREIGN KEY (family_key) REFERENCES youth_families(family_key)
 );
 
+CREATE TABLE IF NOT EXISTS youth_trial_lead_notes (
+    note_key TEXT PRIMARY KEY,
+    note_text TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS youth_trial_lead_status_overrides (
+    override_key TEXT PRIMARY KEY,
+    status_override TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS youth_risk_alerts (
     alert_id INTEGER PRIMARY KEY AUTOINCREMENT,
     family_key TEXT,
@@ -225,10 +237,31 @@ CREATE TABLE IF NOT EXISTS daysmart_class_registrations (
 
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_phone_day ON daysmart_customers(normalized_phone_day);
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_phone_mobile ON daysmart_customers(normalized_phone_mobile);
+CREATE INDEX IF NOT EXISTS idx_daysmart_customer_phone_night ON daysmart_customers(normalized_phone_night);
+CREATE INDEX IF NOT EXISTS idx_daysmart_customer_phone_emergency ON daysmart_customers(normalized_phone_emergency);
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_email ON daysmart_customers(normalized_email);
 CREATE INDEX IF NOT EXISTS idx_daysmart_customer_name ON daysmart_customers(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_daysmart_memberships_bill_customer ON daysmart_memberships(bill_customer_id);
 CREATE INDEX IF NOT EXISTS idx_daysmart_class_registrations_customer ON daysmart_class_registrations(customer_id);
+
+CREATE TABLE IF NOT EXISTS daysmart_ftyc_trial_registrations (
+    registration_id INTEGER PRIMARY KEY,
+    customer_id INTEGER NOT NULL,
+    event_id INTEGER,
+    event_name TEXT,
+    event_start TEXT,
+    registration_created_at TEXT,
+    invoice_item_id INTEGER,
+    invoice_id INTEGER,
+    discount_id INTEGER NOT NULL DEFAULT 77,
+    invoice_created_at TEXT,
+    invoice_price TEXT,
+    raw_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_daysmart_ftyc_trial_customer ON daysmart_ftyc_trial_registrations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_daysmart_ftyc_trial_event_start ON daysmart_ftyc_trial_registrations(event_start);
 
 CREATE TABLE IF NOT EXISTS adult_trial_email_notifications (
     notification_key TEXT PRIMARY KEY,
@@ -267,8 +300,10 @@ CREATE TABLE IF NOT EXISTS youth_trial_schedule_events (
 
 @contextmanager
 def get_conn(database_url: str) -> Iterator[Any]:
-    raw_conn = sqlite3.connect(database_url)
+    raw_conn = sqlite3.connect(database_url, timeout=30)
     raw_conn.row_factory = sqlite3.Row
+    raw_conn.execute("PRAGMA busy_timeout=30000")
+    raw_conn.execute("PRAGMA journal_mode=WAL")
     conn = raw_conn
     try:
         yield conn

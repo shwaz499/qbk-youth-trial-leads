@@ -145,10 +145,18 @@ class DaysmartClient:
         self,
         page_number: int = 1,
         page_size: int = 200,
+        *,
+        filters: dict[str, Any] | None = None,
+        sort: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
+        params: dict[str, Any] = {"page[number]": page_number, "page[size]": page_size}
+        if sort:
+            params["sort"] = sort
+        if filters:
+            params.update({f"filter[{key}]": value for key, value in filters.items()})
         payload = self._request(
             "/api/v1/registrations",
-            params={"page[number]": page_number, "page[size]": page_size},
+            params=params,
         )
         data = payload.get("data") if isinstance(payload, dict) else []
         if not isinstance(data, list):
@@ -166,11 +174,50 @@ class DaysmartClient:
         self,
         page_number: int = 1,
         page_size: int = 200,
+        *,
+        filters: dict[str, Any] | None = None,
+        sort: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
+        params: dict[str, Any] = {
+            "page[number]": page_number,
+            "page[size]": page_size,
+        }
+        if sort:
+            params["sort"] = sort
+        if filters:
+            params.update({f"filter[{key}]": value for key, value in filters.items()})
         payload = self._request(
             "/api/v1/event-registrations",
-            params={"page[number]": page_number, "page[size]": page_size},
+            params=params,
         )
+        data = payload.get("data") if isinstance(payload, dict) else []
+        if not isinstance(data, list):
+            data = []
+        last_page = (
+            ((payload.get("meta") or {}).get("page") or {}).get("last-page")
+            if isinstance(payload, dict)
+            else 1
+        )
+        if not isinstance(last_page, int) or last_page < 1:
+            last_page = page_number
+        return data, last_page
+
+    def list_invoice_items(
+        self,
+        page_number: int = 1,
+        page_size: int = 200,
+        *,
+        filters: dict[str, Any] | None = None,
+        sort: str = "-date",
+    ) -> tuple[list[dict[str, Any]], int]:
+        params: dict[str, Any] = {
+            "page[number]": page_number,
+            "page[size]": page_size,
+            "sort": sort,
+        }
+        if filters:
+            params.update({f"filter[{key}]": value for key, value in filters.items()})
+        payload = self._request("/api/v1/invoice-items", params=params)
         data = payload.get("data") if isinstance(payload, dict) else []
         if not isinstance(data, list):
             data = []

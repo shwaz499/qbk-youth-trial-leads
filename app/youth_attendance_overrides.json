@@ -1,0 +1,21 @@
+{
+  "overrides": [
+    {
+      "customer_id": 28209,
+      "registration_id": 121348,
+      "event_id": 25282,
+      "event_start": "2026-05-18T16:30:00",
+      "name": "Pretty Gurung",
+      "status": "no_show",
+      "reason": "Accidental check-in; child was not actually present.",
+      "updated_at": "2026-05-20"
+    },
+    {
+      "customer_id": 19476,
+      "name": "Christina-Rose Belmonte",
+      "status": "ignore_checkin",
+      "reason": "Historical check-ins were for teen party/drop-in visits, not youth class attendance.",
+      "updated_at": "2026-05-20"
+    }
+  ]
+}

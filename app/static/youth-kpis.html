@@ -18,6 +18,7 @@
       --green: #0c7a69;
       --navy: #173d63;
       --gold: #dfb64b;
+      --purple: #6b4ec8;
       --warm: #fff4dc;
       --danger: #b44949;
     }
@@ -154,26 +155,23 @@
     }
 
     .hero-side {
-      display: grid;
-      gap: 1px;
-      background: var(--line);
-    }
-
-    .hero-stat {
-      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: rgba(255,255,255,0.74);
     }
 
-    .hero-stat strong {
-      display: block;
-      font-size: 34px;
-      line-height: 1;
-      margin-bottom: 8px;
+    .hero-stat {
+      width: 100%;
+      padding: 24px 28px;
+      text-align: center;
     }
 
     .hero-stat span {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.2;
     }
 
     .toolbar {
@@ -287,33 +285,158 @@
       padding: 16px 18px 18px;
     }
 
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
+    .segmented {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
-    .status-chip {
+    .segmented .btn {
+      width: auto;
+      min-width: 88px;
+    }
+
+    .segmented .btn.active {
+      color: white;
+      background: linear-gradient(180deg, #173d63, #102b45);
+      border-color: transparent;
+    }
+
+    .trend-summary {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .trend-stat {
       padding: 12px;
       border-radius: 16px;
-      background: rgba(23, 61, 99, 0.06);
+      background: rgba(23, 61, 99, 0.05);
       border: 1px solid rgba(23, 61, 99, 0.08);
     }
 
-    .status-chip strong {
+    .trend-stat strong {
       display: block;
       font-size: 24px;
       line-height: 1;
     }
 
-    .status-chip span {
+    .trend-stat span {
       display: block;
       margin-top: 6px;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
+    }
+
+    .trend-meta {
+      margin-bottom: 10px;
+      color: var(--muted);
+    }
+
+    .trend-chart-wrap {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.72);
+      overflow: hidden;
+    }
+
+    .trend-chart {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-height: 360px;
+    }
+
+    .trend-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      padding: 12px 2px 2px;
+    }
+
+    .trend-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 120ms ease, transform 120ms ease, color 120ms ease;
+    }
+
+    .trend-legend-item:hover {
+      transform: translateY(-1px);
+      color: var(--ink);
+    }
+
+    .trend-legend-item.is-hidden {
+      opacity: 0.42;
+    }
+
+    .trend-swatch {
+      width: 16px;
+      height: 4px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    .trend-tooltip {
+      position: absolute;
+      z-index: 2;
+      min-width: 180px;
+      max-width: 260px;
+      padding: 10px 12px;
+      border: 1px solid rgba(19, 36, 47, 0.12);
+      border-radius: 14px;
+      background: rgba(19, 36, 47, 0.94);
+      color: white;
+      box-shadow: 0 18px 40px rgba(19, 36, 47, 0.22);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .trend-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .trend-tooltip-period {
+      margin-bottom: 8px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.78);
+    }
+
+    .trend-tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .trend-tooltip-row strong {
+      font-size: 12px;
+    }
+
+    .trend-table-wrap {
+      margin-top: 14px;
+      overflow: auto;
+      max-height: 280px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.6);
     }
 
     .table-wrap {
@@ -373,6 +496,26 @@
       color: var(--green);
     }
 
+    .class-date {
+      display: inline-block;
+      max-width: 230px;
+      color: var(--purple);
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .class-status.checked-in {
+      color: var(--green);
+    }
+
+    .class-status.missed {
+      color: var(--danger);
+    }
+
+    .class-status.pending-registration {
+      color: var(--purple);
+    }
+
     .empty {
       padding: 28px 18px;
       color: var(--muted);
@@ -386,11 +529,14 @@
       .metrics {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
+      .trend-summary {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
     }
 
     @media (max-width: 760px) {
-      .metrics,
-      .status-grid {
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .trend-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .toolbar {
@@ -400,8 +546,8 @@
     }
 
     @media (max-width: 520px) {
-      .metrics,
-      .status-grid {
+      .metrics { grid-template-columns: 1fr; }
+      .trend-summary {
         grid-template-columns: 1fr;
       }
       th, td {
@@ -431,7 +577,7 @@
       <article class="hero-card hero-main">
         <div class="eyebrow">QBK Operations / Youth Funnel</div>
         <h1 class="title">Youth Lead Funnel</h1>
-        <p class="lede">This view tracks recent Youth inbox leads, whether they made a DaySmart account, whether a free trial was scheduled, whether they actually checked in, and whether a membership followed.</p>
+        <p class="lede">This view tracks recent Youth inbox leads, whether they made a DaySmart account, the most recent FTYC free-trial class registration, whether they checked in for that class, and whether a membership followed.</p>
         <div class="hero-actions">
           <button class="btn btn-primary" id="btnRefreshAll" type="button">Refresh</button>
           <button class="btn btn-secondary" id="btnLogout" type="button">Log Out</button>
@@ -439,16 +585,7 @@
       </article>
       <aside class="hero-card hero-side" id="heroSide">
         <div class="hero-stat">
-          <strong id="windowLabel">Last 7 Days</strong>
-          <span id="lastRefreshed">Last refresh: --</span>
-        </div>
-        <div class="hero-stat">
-          <strong id="headlineLeadCount">0</strong>
-          <span>Youth inbox leads in the current cohort</span>
-        </div>
-        <div class="hero-stat">
-          <strong id="headlineAttendance">0</strong>
-          <span>Checked in from actual roster check-in data</span>
+          <span id="lastRefreshed">Published data: --</span>
         </div>
       </aside>
     </section>
@@ -457,9 +594,11 @@
       <div class="toolbar-left">
         <label for="daysSelect" class="mono">Window</label>
         <select id="daysSelect" style="width:auto;">
-          <option value="7" selected>Last 7 days</option>
+          <option value="7">Last 7 days</option>
           <option value="14">Last 14 days</option>
           <option value="30">Last 30 days</option>
+          <option value="this_year" selected>This Year</option>
+          <option value="all_time">All Time</option>
         </select>
       </div>
       <div class="toolbar-right mono">
@@ -467,35 +606,56 @@
       </div>
     </section>
 
-    <section class="metrics" id="metrics"></section>
-
     <section class="panel">
       <div class="panel-head">
-        <h2>Conversation Status</h2>
-        <span class="mono" id="statusSummary">--</span>
+        <h2 id="trendTitle">Lead Trend</h2>
+        <div class="segmented">
+          <button class="btn btn-secondary active" id="trendMonthButton" type="button">Month</button>
+          <button class="btn btn-secondary" id="trendWeekButton" type="button">Week</button>
+          <button class="btn btn-secondary" id="trendQuarterButton" type="button">Quarter</button>
+          <button class="btn btn-secondary" id="trendYearButton" type="button">Year</button>
+        </div>
       </div>
       <div class="panel-body">
-        <div class="status-grid" id="statusGrid"></div>
+        <div class="trend-meta mono" id="trendMeta">Loading all-time trend...</div>
+        <div class="trend-summary" id="trendSummary"></div>
+        <div class="trend-chart-wrap">
+          <svg class="trend-chart" id="trendChart" viewBox="0 0 1200 360" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="trend-tooltip" id="trendTooltip"></div>
+        </div>
+        <div class="trend-legend" id="trendLegend"></div>
+        <div class="trend-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Total Leads</th>
+                <th>Check-ins</th>
+                <th>Check-in %</th>
+                <th>Memberships</th>
+                <th>Membership %</th>
+              </tr>
+            </thead>
+            <tbody id="trendTableBody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
     <section class="panel">
       <div class="panel-head">
-        <h2>Lead Detail</h2>
+        <h2>Youth Trial Leads</h2>
         <span class="mono" id="detailCount">0 rows</span>
       </div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Parent</th>
-              <th>Child</th>
-              <th>Lead Started</th>
-              <th>Status</th>
-              <th>Class</th>
-              <th>Checked In</th>
+              <th>Parent Name</th>
+              <th>Child's Name</th>
+              <th>Phone</th>
+              <th>Free Trial Class</th>
               <th>Membership</th>
-              <th>Conversation</th>
             </tr>
           </thead>
           <tbody id="detailBody"></tbody>
@@ -512,14 +672,47 @@
     const authSubmitButton = q("authSubmitButton");
     const authMessage = q("authMessage");
     const statusLine = q("statusLine");
-    const metrics = q("metrics");
-    const statusGrid = q("statusGrid");
     const detailBody = q("detailBody");
     const detailCount = q("detailCount");
     const daysSelect = q("daysSelect");
+    const trendTitle = q("trendTitle");
+    const trendSummary = q("trendSummary");
+    const trendMeta = q("trendMeta");
+    const trendChart = q("trendChart");
+    const trendLegend = q("trendLegend");
+    const trendTooltip = q("trendTooltip");
+    const trendTableBody = q("trendTableBody");
+    const trendMonthButton = q("trendMonthButton");
+    const trendWeekButton = q("trendWeekButton");
+    const trendQuarterButton = q("trendQuarterButton");
+    const trendYearButton = q("trendYearButton");
+    let refreshToken = 0;
+    let trendToken = 0;
+    let trendGranularity = "month";
+    let latestTrendPayload = null;
+    let snapshotMode = false;
+    let visibleTrendKeys = new Set(["leads", "checked_in", "checkin_percentage", "memberships", "membership_percentage"]);
 
-    function timestamp() {
-      return new Date().toLocaleString();
+    const trendSeries = [
+      { key: "leads", label: "Total Leads", color: "#173d63", axis: "count", dashed: false },
+      { key: "checked_in", label: "Check-ins", color: "#0c7a69", axis: "count", dashed: false },
+      { key: "checkin_percentage", label: "Check-in %", color: "#2e8b7f", axis: "pct", dashed: true },
+      { key: "memberships", label: "Memberships", color: "#b44949", axis: "count", dashed: false },
+      { key: "membership_percentage", label: "Membership %", color: "#7a5c0a", axis: "pct", dashed: true },
+    ];
+
+    function publishedTimestamp(value) {
+      if (!value) return "--";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString();
+    }
+
+    function formatPhone(value) {
+      const digits = String(value || "").replace(/\D/g, "");
+      const ten = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+      if (ten.length !== 10) return value || "--";
+      return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6)}`;
     }
 
     function setStatus(text, isError = false) {
@@ -581,9 +774,21 @@
       let data;
       try { data = JSON.parse(text); } catch { data = { raw: text }; }
       if (!res.ok) throw new Error(data.detail || data.error || text || `HTTP ${res.status}`);
+      snapshotMode = Boolean(data.snapshot_mode);
+      applySnapshotMode();
       hideAuthGate();
+      renderTrendLegend();
       await refreshDashboard();
+      await refreshTrend();
       setStatus("Youth KPI page ready.");
+    }
+
+    function applySnapshotMode() {
+      if (!snapshotMode) return;
+      const refreshButton = q("btnRefreshAll");
+      refreshButton.textContent = "Snapshot Only";
+      refreshButton.disabled = true;
+      refreshButton.title = "This Render version uses uploaded snapshot data only. Refresh locally, then upload a new snapshot.";
     }
 
     async function logout() {
@@ -599,77 +804,296 @@
       return "stage-pill";
     }
 
-    function renderMetrics(cards) {
-      metrics.innerHTML = "";
-      for (const card of cards || []) {
-        metrics.insertAdjacentHTML("beforeend", `
-          <article class="metric-card">
-            <div class="label">${card.label}</div>
-            <div class="value">${card.count ?? 0}</div>
-            <div class="subtext">${card.subtext || ""}</div>
-          </article>
+    function formatPercent(value) {
+      const numeric = Number(value || 0);
+      return `${numeric.toFixed(1)}%`;
+    }
+
+    function shortPeriodLabel(item, granularity) {
+      const start = item?.start_date ? new Date(`${item.start_date}T12:00:00`) : null;
+      if (!start || Number.isNaN(start.getTime())) return item?.label || "--";
+      if (granularity === "week") {
+        return start.toLocaleDateString([], { month: "numeric", day: "numeric" });
+      }
+      if (granularity === "quarter") {
+        const quarter = Math.floor(start.getMonth() / 3) + 1;
+        return `Q${quarter} ${String(start.getFullYear()).slice(-2)}`;
+      }
+      if (granularity === "year") {
+        return String(start.getFullYear());
+      }
+      return start.toLocaleDateString([], { month: "short", year: "2-digit" });
+    }
+
+    function svgLinePath(points) {
+      if (!points.length) return "";
+      return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ");
+    }
+
+    function formatTrendValue(series, value) {
+      return series.axis === "pct" ? formatPercent(value ?? 0) : String(value ?? 0);
+    }
+
+    function currentTrendWindowQuery() {
+      const selectedWindow = daysSelect.value || "7";
+      return (selectedWindow === "this_year" || selectedWindow === "all_time")
+        ? `window=${selectedWindow}`
+        : `days=${Number(selectedWindow) || 7}`;
+    }
+
+    function visibleTrendSeries() {
+      const selected = trendSeries.filter((series) => visibleTrendKeys.has(series.key));
+      return selected.length ? selected : [trendSeries[0]];
+    }
+
+    function renderTrendLegend() {
+      trendLegend.innerHTML = trendSeries.map((series) => `
+        <button class="trend-legend-item ${visibleTrendKeys.has(series.key) ? "" : "is-hidden"}" type="button" data-series-key="${series.key}">
+          <span class="trend-swatch" style="background:${series.color}; ${series.dashed ? 'background-image: repeating-linear-gradient(90deg, transparent 0 4px, rgba(255,255,255,0.7) 4px 7px);' : ''}"></span>
+          <span>${series.label}</span>
+        </button>
+      `).join("");
+      trendLegend.querySelectorAll("[data-series-key]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const key = button.getAttribute("data-series-key");
+          if (!key) return;
+          if (visibleTrendKeys.has(key) && visibleTrendKeys.size === 1) return;
+          if (visibleTrendKeys.has(key)) visibleTrendKeys.delete(key);
+          else visibleTrendKeys.add(key);
+          renderTrendLegend();
+          if (latestTrendPayload) renderTrend(latestTrendPayload);
+        });
+      });
+    }
+
+    function renderTrendSummaryCards(totals) {
+      trendSummary.innerHTML = `
+        <div class="trend-stat"><strong>${totals.leads ?? 0}</strong><span>Total Leads</span></div>
+        <div class="trend-stat"><strong>${totals.checked_in ?? 0}</strong><span>Check-ins</span></div>
+        <div class="trend-stat"><strong>${formatPercent(totals.checkin_percentage ?? 0)}</strong><span>Check-in %</span></div>
+        <div class="trend-stat"><strong>${totals.memberships ?? 0}</strong><span>Memberships</span></div>
+        <div class="trend-stat"><strong>${formatPercent(totals.membership_percentage ?? 0)}</strong><span>Membership %</span></div>
+      `;
+    }
+
+    function renderTrendTable(items) {
+      trendTableBody.innerHTML = "";
+      if (!items.length) {
+        trendTableBody.innerHTML = `<tr><td colspan="6" class="empty">No trend data yet.</td></tr>`;
+        return;
+      }
+      for (const item of items) {
+        trendTableBody.insertAdjacentHTML("beforeend", `
+          <tr>
+            <td>${item.label}</td>
+            <td>${item.leads ?? 0}</td>
+            <td>${item.checked_in ?? 0}</td>
+            <td>${formatPercent(item.checkin_percentage ?? 0)}</td>
+            <td>${item.memberships ?? 0}</td>
+            <td>${formatPercent(item.membership_percentage ?? 0)}</td>
+          </tr>
         `);
       }
     }
 
-    function renderStatuses(items) {
-      statusGrid.innerHTML = "";
-      const total = (items || []).reduce((sum, item) => sum + (item.count || 0), 0);
-      q("statusSummary").textContent = `${total} total`;
-      for (const item of items || []) {
-        statusGrid.insertAdjacentHTML("beforeend", `
-          <div class="status-chip">
-            <strong>${item.count ?? 0}</strong>
-            <span>${item.label}</span>
-          </div>
-        `);
+    function renderTrendChartSvg(items, granularity) {
+      if (!items.length) {
+        trendChart.innerHTML = `<text x="40" y="48" fill="#5f7481" font-family="IBM Plex Mono, monospace" font-size="14">No trend data yet.</text>`;
+        trendTooltip.classList.remove("visible");
+        return;
       }
+
+      const activeSeries = visibleTrendSeries();
+      const width = 1200;
+      const height = 360;
+      const margin = { top: 20, right: 70, bottom: 56, left: 70 };
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const maxCount = Math.max(1, ...items.flatMap((item) =>
+        activeSeries
+          .filter((series) => series.axis === "count")
+          .map((series) => Number(item[series.key] || 0))
+      ));
+      const maxPct = Math.max(100, ...items.flatMap((item) =>
+        activeSeries
+          .filter((series) => series.axis === "pct")
+          .map((series) => Number(item[series.key] || 0))
+      ));
+      const countTicks = 4;
+      const xStep = items.length === 1 ? 0 : innerWidth / (items.length - 1);
+      const labelInterval = Math.max(1, Math.ceil(items.length / 8));
+
+      const countY = (value) => margin.top + innerHeight - ((Number(value || 0) / maxCount) * innerHeight);
+      const pctY = (value) => margin.top + innerHeight - ((Number(value || 0) / maxPct) * innerHeight);
+      const xForIndex = (index) => margin.left + (xStep * index);
+
+      let svg = `
+        <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+        <line x1="${margin.left}" y1="${margin.top + innerHeight}" x2="${width - margin.right}" y2="${margin.top + innerHeight}" stroke="rgba(19,36,47,0.18)" />
+      `;
+
+      for (let tick = 0; tick <= countTicks; tick += 1) {
+        const value = Math.round((maxCount / countTicks) * tick);
+        const y = margin.top + innerHeight - (innerHeight * (tick / countTicks));
+        const pctValue = Math.round((maxPct / countTicks) * tick);
+        svg += `
+          <line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="rgba(19,36,47,0.08)" />
+          <text x="${margin.left - 12}" y="${y + 4}" text-anchor="end" fill="#5f7481" font-family="IBM Plex Mono, monospace" font-size="11">${value}</text>
+          <text x="${width - margin.right + 12}" y="${y + 4}" text-anchor="start" fill="#5f7481" font-family="IBM Plex Mono, monospace" font-size="11">${pctValue}%</text>
+        `;
+      }
+
+      activeSeries.forEach((series) => {
+        const points = items.map((item, index) => ({
+          x: xForIndex(index),
+          y: series.axis === "pct" ? pctY(item[series.key]) : countY(item[series.key]),
+        }));
+        const path = svgLinePath(points);
+        svg += `
+          <path d="${path}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" ${series.dashed ? 'stroke-dasharray="10 7"' : ''}></path>
+        `;
+        points.forEach((point) => {
+          svg += `<circle cx="${point.x}" cy="${point.y}" r="3.5" fill="${series.color}"></circle>`;
+        });
+      });
+
+      items.forEach((item, index) => {
+        const x = xForIndex(index);
+        const hoverWidth = Math.max(32, xStep || innerWidth);
+        svg += `<rect class="trend-hover-target" data-index="${index}" x="${Math.max(margin.left, x - (hoverWidth / 2))}" y="${margin.top}" width="${hoverWidth}" height="${innerHeight}" fill="transparent"></rect>`;
+      });
+
+      items.forEach((item, index) => {
+        if (index % labelInterval !== 0 && index !== items.length - 1) return;
+        const x = xForIndex(index);
+        svg += `
+          <text x="${x}" y="${height - 20}" text-anchor="middle" fill="#5f7481" font-family="IBM Plex Mono, monospace" font-size="11">${shortPeriodLabel(item, granularity)}</text>
+        `;
+      });
+
+      trendChart.innerHTML = svg;
+
+      function hideTooltip() {
+        trendTooltip.classList.remove("visible");
+      }
+
+      function showTooltip(index) {
+        const item = items[index];
+        if (!item) return;
+        const rect = trendChart.getBoundingClientRect();
+        const x = xForIndex(index);
+        const left = (x / width) * rect.width;
+        trendTooltip.innerHTML = `
+          <div class="trend-tooltip-period">${item.label}</div>
+          ${activeSeries.map((series) => `
+            <div class="trend-tooltip-row">
+              <span style="color:${series.color}">${series.label}</span>
+              <strong>${formatTrendValue(series, item[series.key])}</strong>
+            </div>
+          `).join("")}
+        `;
+        const tooltipWidth = 220;
+        const clampedLeft = Math.min(rect.width - tooltipWidth - 12, Math.max(12, left - (tooltipWidth / 2)));
+        trendTooltip.style.left = `${clampedLeft}px`;
+        trendTooltip.style.top = `12px`;
+        trendTooltip.classList.add("visible");
+      }
+
+      trendChart.querySelectorAll(".trend-hover-target").forEach((target) => {
+        target.addEventListener("mouseenter", () => showTooltip(Number(target.getAttribute("data-index"))));
+        target.addEventListener("mousemove", () => showTooltip(Number(target.getAttribute("data-index"))));
+        target.addEventListener("mouseleave", hideTooltip);
+      });
+    }
+
+    function renderTrend(data) {
+      latestTrendPayload = data;
+      trendTooltip.classList.remove("visible");
+      renderTrendSummaryCards(data.totals || {});
+      renderTrendChartSvg(data.items || [], data.granularity || trendGranularity);
+      renderTrendTable(data.items || []);
+      const start = data.window_start_date || "--";
+      const end = data.window_end_date || "--";
+      const label = data.window_label || "Selected Window";
+      trendTitle.textContent = `${label} Lead Trend`;
+      trendMeta.textContent = `${label} trend from ${start} to ${end} • grouped by ${data.granularity || trendGranularity}.`;
+    }
+
+    async function refreshTrend(forceRefresh = false) {
+      const token = ++trendToken;
+      trendMeta.textContent = "Loading trend...";
+      const data = await getJson(`/dashboard/youth-kpis/timeseries?${currentTrendWindowQuery()}&granularity=${trendGranularity}${forceRefresh ? "&refresh=true" : ""}`);
+      if (token !== trendToken) return;
+      renderTrend(data);
+    }
+
+    function setTrendGranularity(nextGranularity) {
+      trendGranularity = nextGranularity;
+      trendMonthButton.classList.toggle("active", nextGranularity === "month");
+      trendWeekButton.classList.toggle("active", nextGranularity === "week");
+      trendQuarterButton.classList.toggle("active", nextGranularity === "quarter");
+      trendYearButton.classList.toggle("active", nextGranularity === "year");
+      return refreshTrend();
     }
 
     function renderDetail(items) {
-      detailCount.textContent = `${items.length} row${items.length === 1 ? "" : "s"}`;
+      detailCount.textContent = `${items.length} lead${items.length === 1 ? "" : "s"}`;
       detailBody.innerHTML = "";
       if (!items.length) {
-        detailBody.innerHTML = `<tr><td colspan="8" class="empty">No youth leads in this date window yet.</td></tr>`;
+        detailBody.innerHTML = `<tr><td colspan="5" class="empty">No qualifying youth trial leads found.</td></tr>`;
         return;
       }
 
       for (const item of items) {
-        const checkedIn = item.has_attended ? (item.attended_at_display || "Yes") : "--";
-        const classText = item.free_trial_class_display || "--";
         const childCell = item.child_daysmart_url
           ? `<a href="${item.child_daysmart_url}" target="_blank" rel="noreferrer">${item.child_name || "--"}</a>`
           : (item.child_name || "--");
         const parentCell = item.parent_daysmart_url
           ? `<a href="${item.parent_daysmart_url}" target="_blank" rel="noreferrer">${item.parent_name || "--"}</a>`
           : (item.parent_name || "--");
+        const phoneRaw = item.parent_phone || "";
+        const phoneDisplay = formatPhone(phoneRaw);
+        const phoneCell = phoneRaw && item.conversation_url
+          ? `<a href="${item.conversation_url}" target="_blank" rel="noreferrer">${phoneDisplay}</a>`
+          : (phoneRaw ? phoneDisplay : "--");
+        const classStatus = item.has_attended
+          ? "checked-in"
+          : item.has_no_show
+            ? "missed"
+            : item.has_scheduled && !item.child_daysmart_url
+              ? "pending-registration"
+              : "";
+        const classDisplay = item.free_trial_class_display || "";
+        const classCell = classDisplay
+          ? `<span class="class-date class-status ${classStatus}">${classDisplay}</span>`
+          : "";
         detailBody.insertAdjacentHTML("beforeend", `
           <tr>
-            <td>${parentCell}<div class="mono">${item.parent_phone || "--"}</div></td>
+            <td>${parentCell}</td>
             <td>${childCell}</td>
-            <td>${item.lead_started_at_display || "--"}</td>
-            <td><span class="${stageClass(item.lead_status)}">${item.lead_status}</span></td>
-            <td>${classText}</td>
-            <td>${checkedIn}</td>
-            <td>${item.memberships_display || "--"}</td>
-            <td><a href="${item.conversation_url}" target="_blank" rel="noreferrer">Open</a></td>
+            <td class="mono">${phoneCell}</td>
+            <td>${classCell}</td>
+            <td><input type="checkbox" style="width:auto;" ${item.has_membership ? "checked" : ""} disabled /></td>
           </tr>
         `);
       }
     }
 
-    async function refreshDashboard() {
-      const days = Number(daysSelect.value || "7");
-      const data = await getJson(`/dashboard/youth-kpis?days=${days}`);
-      renderMetrics(data.summary_cards || []);
-      renderStatuses(data.conversation_statuses || []);
+    function renderDashboard(data) {
       renderDetail(data.items || []);
 
-      q("windowLabel").textContent = `Last ${data.window?.days || days} Days`;
-      q("lastRefreshed").textContent = `Last refresh: ${timestamp()}`;
-      q("headlineLeadCount").textContent = String(data.summary?.lead_conversations ?? 0);
-      q("headlineAttendance").textContent = String(data.summary?.attended_trials ?? 0);
+      q("lastRefreshed").textContent = `Published data: ${publishedTimestamp(data.window?.generated_at)}`;
+    }
 
+    async function refreshDashboard(forceRefresh = false) {
+      const token = ++refreshToken;
+      const selectedWindow = daysSelect.value || "7";
+      const query = (selectedWindow === "this_year" || selectedWindow === "all_time")
+        ? `/dashboard/youth-kpis?window=${selectedWindow}`
+        : `/dashboard/youth-kpis?days=${Number(selectedWindow) || 7}`;
+      const data = await getJson(`${query}${forceRefresh ? "&refresh=true" : ""}`);
+      if (token !== refreshToken) return;
+      renderDashboard(data);
     }
 
     async function withButton(button, fn) {
@@ -704,20 +1128,33 @@
     }
 
     q("btnRefreshAll").addEventListener("click", () => withButton(q("btnRefreshAll"), async () => {
+      if (snapshotMode) {
+        setStatus("Snapshot-only site. Refresh locally, then upload a new snapshot.");
+        return;
+      }
       setStatus("Refreshing data...");
+      const selectedWindow = daysSelect.value || "7";
+      const fullHistory = selectedWindow === "all_time";
       await sendJson("/sync/start", "POST", {
-        daysmart_max_pages: 25,
+        min_last_message_at: fullHistory ? null : undefined,
+        full_history: fullHistory,
+        daysmart_max_pages: 2,
         daysmart_page_size: 200,
       });
       await pollSyncUntilDone();
-      await refreshDashboard();
+      await refreshDashboard(true);
+      await refreshTrend(true);
       setStatus("Youth KPI page ready.");
     }));
 
     q("btnLogout").addEventListener("click", () => withButton(q("btnLogout"), logout));
+    trendMonthButton.addEventListener("click", () => withButton(trendMonthButton, () => setTrendGranularity("month")));
+    trendWeekButton.addEventListener("click", () => withButton(trendWeekButton, () => setTrendGranularity("week")));
+    trendQuarterButton.addEventListener("click", () => withButton(trendQuarterButton, () => setTrendGranularity("quarter")));
+    trendYearButton.addEventListener("click", () => withButton(trendYearButton, () => setTrendGranularity("year")));
 
     daysSelect.addEventListener("change", () => {
-      refreshDashboard()
+      Promise.all([refreshDashboard(false), refreshTrend(false)])
         .then(() => setStatus("Window updated."))
         .catch((error) => setStatus(`Refresh failed: ${error.message}`, true));
     });
@@ -737,9 +1174,14 @@
 
     getJson("/api/auth/status")
       .then((data) => {
+        snapshotMode = Boolean(data.snapshot_mode);
+        applySnapshotMode();
         if (data.authenticated) {
           hideAuthGate();
-          return refreshDashboard().then(() => setStatus("Youth KPI page ready."));
+          renderTrendLegend();
+          return refreshDashboard(false)
+            .then(() => refreshTrend(false))
+            .then(() => setStatus("Youth KPI page ready."));
         }
         showAuthGate();
         setStatus("Enter password to continue.");
