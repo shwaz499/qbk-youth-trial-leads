@@ -65,13 +65,15 @@ def _load_codex_mcp_env(server_name: str) -> dict[str, str]:
 
 def _salesmessage_api_token() -> str:
     salesmessage_env = _load_codex_mcp_env("salesmessage-agent")
-    fallback_token = (
+    legacy_token = (
         salesmessage_env.get("SALESMESSAGE_API_TOKEN", "").strip()
         or salesmessage_env.get("Token", "").strip()
         or os.getenv("SALESMESSAGE_API_TOKEN", "").strip()
     )
     oauth = salesmessage_oauth()
-    return oauth.access_token(fallback_token=fallback_token)
+    if oauth.configured:
+        return oauth.access_token()
+    return legacy_token
 
 
 def salesmessage_oauth() -> SalesmessageOAuth:
@@ -81,7 +83,10 @@ def salesmessage_oauth() -> SalesmessageOAuth:
 
 
 def get_salesmessage_access_token(fallback_token: str = "") -> str:
-    return salesmessage_oauth().access_token(fallback_token=fallback_token)
+    oauth = salesmessage_oauth()
+    if oauth.configured:
+        return oauth.access_token()
+    return fallback_token
 
 
 def _resolve_database_url(raw_value: str) -> str:
