@@ -72,7 +72,7 @@ def _salesmessage_api_token() -> str:
     )
     oauth = salesmessage_oauth()
     if oauth.configured:
-        return oauth.access_token()
+        return oauth.cached_access_token(fallback_token=legacy_token)
     return legacy_token
 
 

@@ -162,7 +162,7 @@ class SalesmessageOAuth:
         data = self._post_token(self.token_url, payload)
         return self._save_token_response(data)
 
-    def access_token(self, *, fallback_token: str = "") -> str:
+    def cached_access_token(self, *, fallback_token: str = "") -> str:
         if not self.configured:
             return fallback_token
         env_access_token = _first_value(
@@ -185,6 +185,16 @@ class SalesmessageOAuth:
         expires_at = float(saved.get("expires_at") or 0)
         if access_token and expires_at > time.time() + 300:
             return access_token
+        return fallback_token
+
+    def access_token(self, *, fallback_token: str = "") -> str:
+        if not self.configured:
+            return fallback_token
+        cached_token = self.cached_access_token()
+        if cached_token:
+            return cached_token
+        saved = _load_json(self.token_file)
+        access_token = str(saved.get("access_token") or "")
         refresh_token = _first_value(
             str(saved.get("refresh_token") or ""),
             os.getenv("SALESMESSAGE_OAUTH_REFRESH_TOKEN"),
