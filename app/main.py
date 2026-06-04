@@ -94,6 +94,39 @@ def _trial_class_is_missed(class_at: dt.datetime | None, now_local: dt.datetime)
     return now_local >= class_local + TRIAL_MISSED_GRACE_PERIOD
 
 
+def _trial_class_time_key(item: dict[str, Any]) -> str | None:
+    candidates = [
+        item.get("free_trial_class_at"),
+        item.get("scheduled_class_at"),
+        item.get("trial_class_when"),
+        item.get("free_trial_class_date"),
+        item.get("scheduled_class_date"),
+        item.get("free_trial_class_display"),
+        item.get("scheduled_class_display"),
+    ]
+    for raw_value in candidates:
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            continue
+        value = raw_value.strip()
+        display_match = re.search(
+            r"(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s*\d{1,2}/\d{1,2}/\d{2}\s+\d{1,2}:\d{2}\s*[AP]M",
+            value,
+        )
+        date_value = display_match.group(0) if display_match else value
+        parsed = _trial_class_at(date_value)
+        if parsed is None:
+            for fmt in ("%a, %m/%d/%y %I:%M %p", "%m/%d/%y %I:%M %p"):
+                try:
+                    local_value = dt.datetime.strptime(date_value, fmt).replace(tzinfo=YOUTH_KPI_LOCAL_TZ)
+                    parsed = local_value.astimezone(dt.timezone.utc)
+                    break
+                except ValueError:
+                    continue
+        if parsed is not None:
+            return parsed.replace(second=0, microsecond=0).isoformat()
+    return None
+
+
 class SyncRequest(BaseModel):
     filters: list[str] = Field(
         default_factory=lambda: ["open", "closed", "unassigned", "pending"]
@@ -309,34 +342,30 @@ def _eventbrite_child_rows(
 
 def _dedupe_trial_lead_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     def dedupe_key(item: dict[str, Any]) -> tuple[Any, ...]:
+        parent_name = _normalize_name(item.get("parent_name") or item.get("contact_name"))
         child_name = _normalize_name(item.get("child_name"))
         child_id = item.get("child_daysmart_customer_id")
+        class_key = _trial_class_time_key(item)
+        class_display = str(
+            item.get("free_trial_class_display")
+            or item.get("scheduled_class_display")
+            or item.get("free_trial_class_name")
+            or ""
+        ).strip()
+        class_identity = class_key or class_display or None
+        if parent_name and child_name and class_key:
+            return ("family_child_class_time", parent_name, child_name, class_key)
         if child_id not in (None, ""):
-            class_display = str(
-                item.get("free_trial_class_display")
-                or item.get("scheduled_class_display")
-                or ""
-            ).strip()
-            return ("daysmart_child_class", str(child_id), class_display or None)
+            return ("daysmart_child_class", str(child_id), class_identity)
         phone = _normalize_phone(item.get("parent_phone") or item.get("contact_phone"))
         if child_name and phone:
-            class_display = str(
-                item.get("free_trial_class_display")
-                or item.get("scheduled_class_display")
-                or ""
-            ).strip()
-            return ("child_phone_class", child_name, phone, class_display or None)
+            return ("child_phone_class", child_name, phone, class_identity)
         return (
             "full",
-            _normalize_name(item.get("parent_name") or item.get("contact_name")),
+            parent_name,
             child_name,
             phone,
-            str(
-                item.get("free_trial_class_display")
-                or item.get("scheduled_class_display")
-                or item.get("free_trial_class_name")
-                or ""
-            ).strip() or None,
+            class_identity,
         )
 
     def item_score(item: dict[str, Any]) -> tuple[int, str]:
@@ -349,6 +378,8 @@ def _dedupe_trial_lead_items(items: list[dict[str, Any]]) -> list[dict[str, Any]
             score += 40
         if class_display:
             score += 20
+        if source_system == "daysmart_ftyc" and class_display:
+            score += 40
         if class_status and class_status != "pending-registration":
             score += 20
         if source_system == "daysmart_ftyc":
