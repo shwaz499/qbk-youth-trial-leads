@@ -4,6 +4,7 @@ import json
 import os
 import secrets
 import time
+import base64
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -66,6 +67,20 @@ def _scopes_from_env(value: str | None) -> list[str]:
     raw = (value or "").replace(",", " ")
     scopes = [scope.strip() for scope in raw.split() if scope.strip()]
     return scopes or list(DEFAULT_SCOPES)
+
+
+def _jwt_expires_at(token: str) -> float:
+    parts = token.split(".")
+    if len(parts) < 2:
+        return 0
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + ("=" * (-len(parts[1]) % 4))))
+    except Exception:
+        return 0
+    try:
+        return float(payload.get("exp") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 class SalesmessageOAuth:
@@ -150,6 +165,21 @@ class SalesmessageOAuth:
     def access_token(self, *, fallback_token: str = "") -> str:
         if not self.configured:
             return fallback_token
+        env_access_token = _first_value(
+            os.getenv("SALESMESSAGE_OAUTH_ACCESS_TOKEN"),
+            self.mcp_env.get("SALESMESSAGE_OAUTH_ACCESS_TOKEN"),
+        )
+        if env_access_token:
+            env_expires_at = _first_value(
+                os.getenv("SALESMESSAGE_OAUTH_ACCESS_TOKEN_EXPIRES_AT"),
+                self.mcp_env.get("SALESMESSAGE_OAUTH_ACCESS_TOKEN_EXPIRES_AT"),
+            )
+            try:
+                expires_at = float(env_expires_at)
+            except (TypeError, ValueError):
+                expires_at = _jwt_expires_at(env_access_token)
+            if not expires_at or expires_at > time.time() + 300:
+                return env_access_token
         saved = _load_json(self.token_file)
         access_token = str(saved.get("access_token") or "")
         expires_at = float(saved.get("expires_at") or 0)
